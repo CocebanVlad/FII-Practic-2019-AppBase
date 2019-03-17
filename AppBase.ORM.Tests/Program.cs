@@ -10,6 +10,7 @@ namespace AppBase.ORM.Tests
     {
         static void Main(string[] args)
         {
+            var model = ModelManager.Load();
         }
     }
 }

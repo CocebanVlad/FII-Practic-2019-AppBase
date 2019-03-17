@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="3.0" xmlns:edmx="http://schemas.microsoft.com/ado/2009/11/edmx">
+ <!-- EF Designer content (DO NOT EDIT MANUALLY BELOW HERE) -->
+  <edmx:Designer xmlns="http://schemas.microsoft.com/ado/2009/11/edmx">
+    <!-- Diagram content (shape and connector positions) -->
+    <edmx:Diagrams>
+      <Diagram DiagramId="32d0a5850a804e08a845e6d6ca7525a0" Name="Diagram1" ZoomLevel="85">
+        <EntityTypeShape EntityType="AppBaseModel.Function" Width="1.5" PointX="0.75" PointY="0.75" IsExpanded="true" />
+        <EntityTypeShape EntityType="AppBaseModel.Right" Width="1.5" PointX="3" PointY="2.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="AppBaseModel.Role" Width="1.5" PointX="0.75" PointY="3.625" IsExpanded="true" />
+        <EntityTypeShape EntityType="AppBaseModel.TabRow" Width="1.5" PointX="8" PointY="1.875" IsExpanded="true" />
+        <EntityTypeShape EntityType="AppBaseModel.Tab" Width="1.5" PointX="5.75" PointY="1.875" IsExpanded="true" />
+        <EntityTypeShape EntityType="AppBaseModel.User" Width="1.5" PointX="3" PointY="6.125" IsExpanded="true" />
+        <AssociationConnector Association="AppBaseModel.FK_Rights_Functions" ManuallyRouted="false" />
+        <AssociationConnector Association="AppBaseModel.FK_Rights_Roles" ManuallyRouted="false" />
+        <AssociationConnector Association="AppBaseModel.FK_TabRows_Tab" ManuallyRouted="false" />
+        <AssociationConnector Association="AppBaseModel.UserInRoles" ManuallyRouted="false" />
+      </Diagram>
+    </edmx:Diagrams>
+  </edmx:Designer>
+</edmx:Edmx>

@@ -1,0 +1,373 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="3.0" xmlns:edmx="http://schemas.microsoft.com/ado/2009/11/edmx">
+  <!-- EF Runtime content -->
+  <edmx:Runtime>
+    <!-- SSDL content -->
+    <edmx:StorageModels>
+      <Schema Namespace="AppBaseModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2012" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
+        <EntityType Name="Function">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="Name" Type="nvarchar" MaxLength="120" Nullable="false" />
+        </EntityType>
+        <EntityType Name="Rights">
+          <Key>
+            <PropertyRef Name="RoleId" />
+            <PropertyRef Name="FunctionId" />
+          </Key>
+          <Property Name="RoleId" Type="int" Nullable="false" />
+          <Property Name="FunctionId" Type="int" Nullable="false" />
+          <Property Name="IsEnabled" Type="bit" Nullable="false" />
+        </EntityType>
+        <EntityType Name="Roles">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="Name" Type="nvarchar" MaxLength="50" Nullable="false" />
+        </EntityType>
+        <EntityType Name="TabRows">
+          <Key>
+            <PropertyRef Name="CodTab" />
+            <PropertyRef Name="Cod" />
+          </Key>
+          <Property Name="CodTab" Type="nvarchar" MaxLength="120" Nullable="false" />
+          <Property Name="Cod" Type="nvarchar" MaxLength="120" Nullable="false" />
+          <Property Name="Description" Type="nvarchar" MaxLength="120" Nullable="false" />
+        </EntityType>
+        <EntityType Name="Tabs">
+          <Key>
+            <PropertyRef Name="Cod" />
+          </Key>
+          <Property Name="Cod" Type="nvarchar" MaxLength="120" Nullable="false" />
+          <Property Name="Description" Type="nvarchar" MaxLength="120" Nullable="false" />
+        </EntityType>
+        <EntityType Name="UserInRoles">
+          <Key>
+            <PropertyRef Name="UserId" />
+            <PropertyRef Name="RoleId" />
+          </Key>
+          <Property Name="UserId" Type="int" Nullable="false" />
+          <Property Name="RoleId" Type="int" Nullable="false" />
+        </EntityType>
+        <EntityType Name="Users">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="UserName" Type="nvarchar" MaxLength="250" Nullable="false" />
+          <Property Name="Email" Type="nvarchar" MaxLength="250" Nullable="false" />
+          <Property Name="FirstName" Type="nvarchar" MaxLength="60" />
+          <Property Name="LastName" Type="nvarchar" MaxLength="60" />
+          <Property Name="BirthDate" Type="datetime" />
+        </EntityType>
+        <Association Name="FK_Rights_Functions">
+          <End Role="Function" Type="Self.Function" Multiplicity="1" />
+          <End Role="Rights" Type="Self.Rights" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Function">
+              <PropertyRef Name="Id" />
+            </Principal>
+            <Dependent Role="Rights">
+              <PropertyRef Name="FunctionId" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_Rights_Roles">
+          <End Role="Roles" Type="Self.Roles" Multiplicity="1" />
+          <End Role="Rights" Type="Self.Rights" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Roles">
+              <PropertyRef Name="Id" />
+            </Principal>
+            <Dependent Role="Rights">
+              <PropertyRef Name="RoleId" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_TabRows_Tab">
+          <End Role="Tabs" Type="Self.Tabs" Multiplicity="1" />
+          <End Role="TabRows" Type="Self.TabRows" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Tabs">
+              <PropertyRef Name="Cod" />
+            </Principal>
+            <Dependent Role="TabRows">
+              <PropertyRef Name="CodTab" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_UserInRoles_Roles">
+          <End Role="Roles" Type="Self.Roles" Multiplicity="1" />
+          <End Role="UserInRoles" Type="Self.UserInRoles" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Roles">
+              <PropertyRef Name="Id" />
+            </Principal>
+            <Dependent Role="UserInRoles">
+              <PropertyRef Name="RoleId" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_UserInRoles_Users">
+          <End Role="Users" Type="Self.Users" Multiplicity="1" />
+          <End Role="UserInRoles" Type="Self.UserInRoles" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Users">
+              <PropertyRef Name="Id" />
+            </Principal>
+            <Dependent Role="UserInRoles">
+              <PropertyRef Name="UserId" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <EntityContainer Name="AppBaseModelStoreContainer">
+          <EntitySet Name="Function" EntityType="Self.Function" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="Rights" EntityType="Self.Rights" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="Roles" EntityType="Self.Roles" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="TabRows" EntityType="Self.TabRows" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="Tabs" EntityType="Self.Tabs" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="UserInRoles" EntityType="Self.UserInRoles" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="Users" EntityType="Self.Users" Schema="dbo" store:Type="Tables" />
+          <AssociationSet Name="FK_Rights_Functions" Association="Self.FK_Rights_Functions">
+            <End Role="Function" EntitySet="Function" />
+            <End Role="Rights" EntitySet="Rights" />
+          </AssociationSet>
+          <AssociationSet Name="FK_Rights_Roles" Association="Self.FK_Rights_Roles">
+            <End Role="Roles" EntitySet="Roles" />
+            <End Role="Rights" EntitySet="Rights" />
+          </AssociationSet>
+          <AssociationSet Name="FK_TabRows_Tab" Association="Self.FK_TabRows_Tab">
+            <End Role="Tabs" EntitySet="Tabs" />
+            <End Role="TabRows" EntitySet="TabRows" />
+          </AssociationSet>
+          <AssociationSet Name="FK_UserInRoles_Roles" Association="Self.FK_UserInRoles_Roles">
+            <End Role="Roles" EntitySet="Roles" />
+            <End Role="UserInRoles" EntitySet="UserInRoles" />
+          </AssociationSet>
+          <AssociationSet Name="FK_UserInRoles_Users" Association="Self.FK_UserInRoles_Users">
+            <End Role="Users" EntitySet="Users" />
+            <End Role="UserInRoles" EntitySet="UserInRoles" />
+          </AssociationSet>
+        </EntityContainer>
+      </Schema>
+    </edmx:StorageModels>
+    <!-- CSDL content -->
+    <edmx:ConceptualModels>
+      <Schema Namespace="AppBaseModel" Alias="Self" annotation:UseStrongSpatialTypes="false" xmlns:annotation="http://schemas.microsoft.com/ado/2009/02/edm/annotation" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm">
+        <EntityType Name="Function">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="Name" Type="String" MaxLength="120" FixedLength="false" Unicode="true" Nullable="false" />
+          <NavigationProperty Name="Rights" Relationship="Self.FK_Rights_Functions" FromRole="Function" ToRole="Rights" />
+        </EntityType>
+        <EntityType Name="Right">
+          <Key>
+            <PropertyRef Name="RoleId" />
+            <PropertyRef Name="FunctionId" />
+          </Key>
+          <Property Name="RoleId" Type="Int32" Nullable="false" />
+          <Property Name="FunctionId" Type="Int32" Nullable="false" />
+          <Property Name="IsEnabled" Type="Boolean" Nullable="false" />
+          <NavigationProperty Name="Function" Relationship="Self.FK_Rights_Functions" FromRole="Rights" ToRole="Function" />
+          <NavigationProperty Name="Role" Relationship="Self.FK_Rights_Roles" FromRole="Rights" ToRole="Roles" />
+        </EntityType>
+        <EntityType Name="Role">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="Name" Type="String" MaxLength="50" FixedLength="false" Unicode="true" Nullable="false" />
+          <NavigationProperty Name="Rights" Relationship="Self.FK_Rights_Roles" FromRole="Roles" ToRole="Rights" />
+          <NavigationProperty Name="Users" Relationship="Self.UserInRoles" FromRole="Roles" ToRole="Users" />
+        </EntityType>
+        <EntityType Name="TabRow">
+          <Key>
+            <PropertyRef Name="CodTab" />
+            <PropertyRef Name="Cod" />
+          </Key>
+          <Property Name="CodTab" Type="String" MaxLength="120" FixedLength="false" Unicode="true" Nullable="false" />
+          <Property Name="Cod" Type="String" MaxLength="120" FixedLength="false" Unicode="true" Nullable="false" />
+          <Property Name="Description" Type="String" MaxLength="120" FixedLength="false" Unicode="true" Nullable="false" />
+          <NavigationProperty Name="Tab" Relationship="Self.FK_TabRows_Tab" FromRole="TabRows" ToRole="Tabs" />
+        </EntityType>
+        <EntityType Name="Tab">
+          <Key>
+            <PropertyRef Name="Cod" />
+          </Key>
+          <Property Name="Cod" Type="String" MaxLength="120" FixedLength="false" Unicode="true" Nullable="false" />
+          <Property Name="Description" Type="String" MaxLength="120" FixedLength="false" Unicode="true" Nullable="false" />
+          <NavigationProperty Name="TabRows" Relationship="Self.FK_TabRows_Tab" FromRole="Tabs" ToRole="TabRows" />
+        </EntityType>
+        <EntityType Name="User">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="UserName" Type="String" MaxLength="250" FixedLength="false" Unicode="true" Nullable="false" />
+          <Property Name="Email" Type="String" MaxLength="250" FixedLength="false" Unicode="true" Nullable="false" />
+          <Property Name="FirstName" Type="String" MaxLength="60" FixedLength="false" Unicode="true" />
+          <Property Name="LastName" Type="String" MaxLength="60" FixedLength="false" Unicode="true" />
+          <Property Name="BirthDate" Type="DateTime" Precision="3" />
+          <NavigationProperty Name="Roles" Relationship="Self.UserInRoles" FromRole="Users" ToRole="Roles" />
+        </EntityType>
+        <Association Name="FK_Rights_Functions">
+          <End Role="Function" Type="Self.Function" Multiplicity="1" />
+          <End Role="Rights" Type="Self.Right" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Function">
+              <PropertyRef Name="Id" />
+            </Principal>
+            <Dependent Role="Rights">
+              <PropertyRef Name="FunctionId" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_Rights_Roles">
+          <End Role="Roles" Type="Self.Role" Multiplicity="1" />
+          <End Role="Rights" Type="Self.Right" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Roles">
+              <PropertyRef Name="Id" />
+            </Principal>
+            <Dependent Role="Rights">
+              <PropertyRef Name="RoleId" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_TabRows_Tab">
+          <End Role="Tabs" Type="Self.Tab" Multiplicity="1" />
+          <End Role="TabRows" Type="Self.TabRow" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Tabs">
+              <PropertyRef Name="Cod" />
+            </Principal>
+            <Dependent Role="TabRows">
+              <PropertyRef Name="CodTab" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="UserInRoles">
+          <End Role="Roles" Type="Self.Role" Multiplicity="*" />
+          <End Role="Users" Type="Self.User" Multiplicity="*" />
+        </Association>
+        <EntityContainer Name="AppBaseEntities" annotation:LazyLoadingEnabled="true">
+          <EntitySet Name="Functions" EntityType="Self.Function" />
+          <EntitySet Name="Rights" EntityType="Self.Right" />
+          <EntitySet Name="Roles" EntityType="Self.Role" />
+          <EntitySet Name="TabRows" EntityType="Self.TabRow" />
+          <EntitySet Name="Tabs" EntityType="Self.Tab" />
+          <EntitySet Name="Users" EntityType="Self.User" />
+          <AssociationSet Name="FK_Rights_Functions" Association="Self.FK_Rights_Functions">
+            <End Role="Function" EntitySet="Functions" />
+            <End Role="Rights" EntitySet="Rights" />
+          </AssociationSet>
+          <AssociationSet Name="FK_Rights_Roles" Association="Self.FK_Rights_Roles">
+            <End Role="Roles" EntitySet="Roles" />
+            <End Role="Rights" EntitySet="Rights" />
+          </AssociationSet>
+          <AssociationSet Name="FK_TabRows_Tab" Association="Self.FK_TabRows_Tab">
+            <End Role="Tabs" EntitySet="Tabs" />
+            <End Role="TabRows" EntitySet="TabRows" />
+          </AssociationSet>
+          <AssociationSet Name="UserInRoles" Association="Self.UserInRoles">
+            <End Role="Roles" EntitySet="Roles" />
+            <End Role="Users" EntitySet="Users" />
+          </AssociationSet>
+        </EntityContainer>
+      </Schema>
+    </edmx:ConceptualModels>
+    <!-- C-S mapping content -->
+    <edmx:Mappings>
+      <Mapping Space="C-S" xmlns="http://schemas.microsoft.com/ado/2009/11/mapping/cs">
+        <EntityContainerMapping StorageEntityContainer="AppBaseModelStoreContainer" CdmEntityContainer="AppBaseEntities">
+          <EntitySetMapping Name="Functions">
+            <EntityTypeMapping TypeName="AppBaseModel.Function">
+              <MappingFragment StoreEntitySet="Function">
+                <ScalarProperty Name="Id" ColumnName="Id" />
+                <ScalarProperty Name="Name" ColumnName="Name" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="Rights">
+            <EntityTypeMapping TypeName="AppBaseModel.Right">
+              <MappingFragment StoreEntitySet="Rights">
+                <ScalarProperty Name="RoleId" ColumnName="RoleId" />
+                <ScalarProperty Name="FunctionId" ColumnName="FunctionId" />
+                <ScalarProperty Name="IsEnabled" ColumnName="IsEnabled" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="Roles">
+            <EntityTypeMapping TypeName="AppBaseModel.Role">
+              <MappingFragment StoreEntitySet="Roles">
+                <ScalarProperty Name="Id" ColumnName="Id" />
+                <ScalarProperty Name="Name" ColumnName="Name" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="TabRows">
+            <EntityTypeMapping TypeName="AppBaseModel.TabRow">
+              <MappingFragment StoreEntitySet="TabRows">
+                <ScalarProperty Name="CodTab" ColumnName="CodTab" />
+                <ScalarProperty Name="Cod" ColumnName="Cod" />
+                <ScalarProperty Name="Description" ColumnName="Description" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="Tabs">
+            <EntityTypeMapping TypeName="AppBaseModel.Tab">
+              <MappingFragment StoreEntitySet="Tabs">
+                <ScalarProperty Name="Cod" ColumnName="Cod" />
+                <ScalarProperty Name="Description" ColumnName="Description" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="Users">
+            <EntityTypeMapping TypeName="AppBaseModel.User">
+              <MappingFragment StoreEntitySet="Users">
+                <ScalarProperty Name="Id" ColumnName="Id" />
+                <ScalarProperty Name="UserName" ColumnName="UserName" />
+                <ScalarProperty Name="Email" ColumnName="Email" />
+                <ScalarProperty Name="FirstName" ColumnName="FirstName" />
+                <ScalarProperty Name="LastName" ColumnName="LastName" />
+                <ScalarProperty Name="BirthDate" ColumnName="BirthDate" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <AssociationSetMapping Name="UserInRoles" TypeName="AppBaseModel.UserInRoles" StoreEntitySet="UserInRoles">
+            <EndProperty Name="Roles">
+              <ScalarProperty Name="Id" ColumnName="RoleId" />
+            </EndProperty>
+            <EndProperty Name="Users">
+              <ScalarProperty Name="Id" ColumnName="UserId" />
+            </EndProperty>
+          </AssociationSetMapping>
+        </EntityContainerMapping>
+      </Mapping>
+    </edmx:Mappings>
+  </edmx:Runtime>
+  <!-- EF Designer content (DO NOT EDIT MANUALLY BELOW HERE) -->
+  <Designer xmlns="http://schemas.microsoft.com/ado/2009/11/edmx">
+    <Connection>
+      <DesignerInfoPropertySet>
+        <DesignerProperty Name="MetadataArtifactProcessing" Value="EmbedInOutputAssembly" />
+      </DesignerInfoPropertySet>
+    </Connection>
+    <Options>
+      <DesignerInfoPropertySet>
+        <DesignerProperty Name="ValidateOnBuild" Value="true" />
+        <DesignerProperty Name="EnablePluralization" Value="true" />
+        <DesignerProperty Name="IncludeForeignKeysInModel" Value="true" />
+        <DesignerProperty Name="UseLegacyProvider" Value="false" />
+        <DesignerProperty Name="CodeGenerationStrategy" Value="None" />
+      </DesignerInfoPropertySet>
+    </Options>
+    <!-- Diagram content (shape and connector positions) -->
+    <Diagrams></Diagrams>
+  </Designer>
+</edmx:Edmx>

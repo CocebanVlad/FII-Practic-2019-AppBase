@@ -1,0 +1,148 @@
+{
+  "entities": [
+    {
+      "tableName": "Users",
+      "name": "User",
+      "fields": [
+        {
+          "fieldName": "Roles",
+          "relation": "UserInRole.UserInRoles_Roles"
+        }
+      ],
+      "key": [],
+      "relations": []
+    },
+    {
+      "tableName": "UserInRoles",
+      "name": "UserInRole",
+      "fields": [
+        {
+          "fieldName": "User",
+          "relation": "UserInRole.UserInRoles_Users"
+        },
+        {
+          "fieldName": "Role",
+          "relation": "UserInRole.UserInRoles_Roles"
+        }
+      ],
+      "key": [],
+      "relations": [
+        {
+          "name": "UserInRoles_Users",
+          "tableName": "Users",
+          "fields": [
+            {
+              "parentColumnName": "UserId",
+              "childColumnName": "Id"
+            }
+          ]
+        },
+        {
+          "name": "UserInRoles_Roles",
+          "tableName": "Roles",
+          "fields": [
+            {
+              "parentColumnName": "RoleId",
+              "childColumnName": "Id"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tableName": "Roles",
+      "name": "Role",
+      "fields": [
+        {
+          "fieldName": "Users",
+          "relation": "UserInRole.UserInRoles_Users"
+        },
+        {
+          "fieldName": "Rights",
+          "relation": "Right.Roles_Rights"
+        }
+      ],
+      "key": [],
+      "relations": []
+    },
+    {
+      "tableName": "Rights",
+      "name": "Right",
+      "fields": [
+        {
+          "fieldName": "Function",
+          "relation": "Right.Functions_Rights"
+        },
+        {
+          "fieldName": "Role",
+          "relation": "Right.Roles_Rights"
+        }
+      ],
+      "key": [],
+      "relations": [
+        {
+          "name": "Roles_Rights",
+          "tableName": "Roles",
+          "fields": [
+            {
+              "parentColumnName": "RoleId",
+              "childColumnName": "Id"
+            }
+          ]
+        },
+        {
+          "name": "Functions_Rights",
+          "tableName": "Functions",
+          "fields": [
+            {
+              "parentColumnName": "FunctionId",
+              "childColumnName": "Id"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tableName": "Tabs",
+      "name": "Tab",
+      "fields": [
+        {
+          "fieldName": "Rows",
+          "relation": "TabRow.Rows_TabRows"
+        }
+      ],
+      "key": [],
+      "relations": []
+    },
+    {
+      "tableName": "TabRows",
+      "name": "TabRow",
+      "fields": [
+        {
+          "fieldName": "Tab",
+          "relation": "TabRow.Rows_TabRows"
+        }
+      ],
+      "key": [],
+      "relations": [
+        {
+          "name": "Rows_TabRows",
+          "tableName": "Tabs",
+          "fields": [
+            {
+              "parentColumnName": "CodTab",
+              "childColumnName": "Cod"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tableName": "Functions",
+      "name": "Function",
+      "fields": [],
+      "key": [],
+      "relations": []
+    }
+  ]
+}
