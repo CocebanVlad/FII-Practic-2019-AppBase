@@ -1,0 +1,11 @@
+ORM
+-----
+1. Create DB entities
+2. Make a fast test using EntityFramework
+3. Talk about Reflection
+4. Define Conceptual Model
+5. Define Mapping
+6. Talk about T4
+7. Create ORM interfaces
+8. Create code generation tools
+9. Make a fast test using our ORM
