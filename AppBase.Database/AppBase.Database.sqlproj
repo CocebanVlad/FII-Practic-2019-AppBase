@@ -71,4 +71,7 @@
     <Build Include="dbo\Tables\Tabs.sql" />
     <Build Include="dbo\Tables\TabRows.sql" />
   </ItemGroup>
+  <ItemGroup>
+    <RefactorLog Include="AppBase.Database.refactorlog" />
+  </ItemGroup>
 </Project>
