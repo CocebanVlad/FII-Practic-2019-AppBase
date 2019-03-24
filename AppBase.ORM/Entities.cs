@@ -9,249 +9,691 @@
 
 namespace AppBase.ORM.Entities
 {
-	using System;
-	using System.Collections.Generic;
-	using System.Linq;
-	using System.Text;
-	using System.Threading.Tasks;
+    using System;
+    using System.Collections.Generic;
+    using System.Data.SqlClient;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
 
-	#region User
-	public partial class User : BaseEntity
-	{
-		/// <summary>
-		/// Get or set Id
-		/// </summary>
-		public Int32 Id { get; set; }
+    #region User
+    public partial class User : BaseEntity
+    {
+        /// <summary>
+        /// Get or set Id
+        /// </summary>
+        public Int32 Id { get; set; }
 
-		/// <summary>
-		/// Get or set UserName
-		/// </summary>
-		public String UserName { get; set; }
+        /// <summary>
+        /// Get or set UserName
+        /// </summary>
+        public String UserName { get; set; }
 
-		/// <summary>
-		/// Get or set Email
-		/// </summary>
-		public String Email { get; set; }
+        /// <summary>
+        /// Get or set Email
+        /// </summary>
+        public String Email { get; set; }
 
-		/// <summary>
-		/// Get or set FirstName
-		/// </summary>
-		public String FirstName { get; set; }
+        /// <summary>
+        /// Get or set FirstName
+        /// </summary>
+        public String FirstName { get; set; }
 
-		/// <summary>
-		/// Get or set LastName
-		/// </summary>
-		public String LastName { get; set; }
+        /// <summary>
+        /// Get or set LastName
+        /// </summary>
+        public String LastName { get; set; }
 
-		/// <summary>
-		/// Get or set BirthDate
-		/// </summary>
-		public Nullable<DateTime> BirthDate { get; set; }
+        /// <summary>
+        /// Get or set BirthDate
+        /// </summary>
+        public Nullable<DateTime> BirthDate { get; set; }
 
-		/// <summary>
-		/// Get or set Roles
-		/// </summary>
-		public List<Role> Roles { get; set; }
+        /// <summary>
+        /// Get or set Roles
+        /// </summary>
+        public List<Role> Roles { get; set; }
 
-		public User()
-		{
-			Roles = new List<Role>();
-		}
-	}
+        public User()
+        {
+            Roles = new List<Role>();
+        }
+    }
 
-	public partial class UserRepository : BaseRepository
-	{
-	}
-	#endregion
+    public partial class UserRepository : BaseRepository<User>
+    {
+        public UserRepository(SqlConnection conn)
+            : base(conn)
+        {
+        }
 
-	#region UserInRole
-	public partial class UserInRole : BaseEntity
-	{
-		/// <summary>
-		/// Get or set UserId
-		/// </summary>
-		public Int32 UserId { get; set; }
+        /// <summary>
+        /// Insert or update User
+        /// </summary>
+        /// <param name="entity">User</param>
+        public override void InsertOrUpdate(User entity)
+        {
+            using (var tr = Connection.BeginTransaction())
+            using (var cmd = Connection.CreateCommand())
+            {
+                try
+                {
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Users] WHERE
+                            ([Id] = @Id);
+                        INSERT INTO [dbo].[Users] ([Id], [UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
+                            (@Id, @UserName, @Email, @FirstName, @LastName, @BirthDate);
+                        ";
 
-		/// <summary>
-		/// Get or set RoleId
-		/// </summary>
-		public Int32 RoleId { get; set; }
+                    cmd.Parameters.AddWithValue("@Id", entity.Id);
+                    cmd.Parameters.AddWithValue("@UserName", entity.UserName);
+                    cmd.Parameters.AddWithValue("@Email", entity.Email);
+                    cmd.Parameters.AddWithValue("@FirstName", entity.FirstName);
+                    cmd.Parameters.AddWithValue("@LastName", entity.LastName);
+                    cmd.Parameters.AddWithValue("@BirthDate", entity.BirthDate);
+                    cmd.ExecuteNonQuery();
 
-		/// <summary>
-		/// Get or set User
-		/// </summary>
-		public User User { get; set; }
+                    #region Roles
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[UserInRoles] WHERE
+                            ([Id] = @Id);
+                        ";
+                    cmd.ExecuteNonQuery();
 
-		/// <summary>
-		/// Get or set Role
-		/// </summary>
-		public Role Role { get; set; }
+                    if (entity.Roles != null && entity.Roles.Count > 0)
+                        foreach (var item in entity.Roles)
+                        {
+                            cmd.CommandText = @"
+                                DELETE FROM [dbo].[Roles] WHERE
+                                    ([Id] = @Id);
+                                INSERT INTO [dbo].[Roles] ([Id], [Name]) VALUES
+                                    (@Id, @Name);
+                                ";
 
-		public UserInRole()
-		{
-		}
-	}
+                            cmd.Parameters.AddWithValue("@Id", item.Id);
+                            cmd.Parameters.AddWithValue("@Name", item.Name);
+                            cmd.ExecuteNonQuery();
 
-	public partial class UserInRoleRepository : BaseRepository
-	{
-	}
-	#endregion
+                            cmd.CommandText = @"
+                                INSERT INTO [dbo].[UserInRoles] ([UserId], [RoleId]) VALUES
+                                    (@UserId, @RoleId);
+                                ";
 
-	#region Role
-	public partial class Role : BaseEntity
-	{
-		/// <summary>
-		/// Get or set Id
-		/// </summary>
-		public Int32 Id { get; set; }
+                            cmd.Parameters.AddWithValue("@UserId", entity.Id);
+                            cmd.Parameters.AddWithValue("@RoleId", item.Id);
+                            cmd.ExecuteNonQuery();
+                        }
+                    #endregion
 
-		/// <summary>
-		/// Get or set Name
-		/// </summary>
-		public String Name { get; set; }
+                    tr.Commit();
+                }
+                catch (Exception)
+                {
+                    tr.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
+    #endregion
 
-		/// <summary>
-		/// Get or set Users
-		/// </summary>
-		public List<User> Users { get; set; }
+    #region UserInRole
+    public partial class UserInRole : BaseEntity
+    {
+        /// <summary>
+        /// Get or set UserId
+        /// </summary>
+        public Int32 UserId { get; set; }
 
-		/// <summary>
-		/// Get or set Rights
-		/// </summary>
-		public List<Role> Rights { get; set; }
+        /// <summary>
+        /// Get or set RoleId
+        /// </summary>
+        public Int32 RoleId { get; set; }
 
-		public Role()
-		{
-			Users = new List<User>();
-			Rights = new List<Role>();
-		}
-	}
+        /// <summary>
+        /// Get or set User
+        /// </summary>
+        public User User { get; set; }
 
-	public partial class RoleRepository : BaseRepository
-	{
-	}
-	#endregion
+        /// <summary>
+        /// Get or set Role
+        /// </summary>
+        public Role Role { get; set; }
 
-	#region Right
-	public partial class Right : BaseEntity
-	{
-		/// <summary>
-		/// Get or set RoleId
-		/// </summary>
-		public Int32 RoleId { get; set; }
+        public UserInRole()
+        {
+        }
+    }
 
-		/// <summary>
-		/// Get or set FunctionId
-		/// </summary>
-		public Int32 FunctionId { get; set; }
+    public partial class UserInRoleRepository : BaseRepository<UserInRole>
+    {
+        public UserInRoleRepository(SqlConnection conn)
+            : base(conn)
+        {
+        }
 
-		/// <summary>
-		/// Get or set IsEnabled
-		/// </summary>
-		public Boolean IsEnabled { get; set; }
+        /// <summary>
+        /// Insert or update UserInRole
+        /// </summary>
+        /// <param name="entity">UserInRole</param>
+        public override void InsertOrUpdate(UserInRole entity)
+        {
+            using (var tr = Connection.BeginTransaction())
+            using (var cmd = Connection.CreateCommand())
+            {
+                try
+                {
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[UserInRoles] WHERE
+                            ([UserId] = @UserId, [RoleId] = @RoleId);
+                        INSERT INTO [dbo].[UserInRoles] ([UserId], [RoleId]) VALUES
+                            (@UserId, @RoleId);
+                        ";
 
-		/// <summary>
-		/// Get or set Function
-		/// </summary>
-		public Function Function { get; set; }
+                    cmd.Parameters.AddWithValue("@UserId", entity.UserId);
+                    cmd.Parameters.AddWithValue("@RoleId", entity.RoleId);
+                    cmd.ExecuteNonQuery();
 
-		/// <summary>
-		/// Get or set Role
-		/// </summary>
-		public Role Role { get; set; }
+                    #region User
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Users] WHERE
+                            ([Id] = @Id);
+                        INSERT INTO [dbo].[Users] ([Id], [UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
+                            (@Id, @UserName, @Email, @FirstName, @LastName, @BirthDate);
+                        ";
+                    cmd.Parameters.AddWithValue("@Id", entity.User.Id);
+                    cmd.Parameters.AddWithValue("@UserName", entity.User.UserName);
+                    cmd.Parameters.AddWithValue("@Email", entity.User.Email);
+                    cmd.Parameters.AddWithValue("@FirstName", entity.User.FirstName);
+                    cmd.Parameters.AddWithValue("@LastName", entity.User.LastName);
+                    cmd.Parameters.AddWithValue("@BirthDate", entity.User.BirthDate);
+                    cmd.ExecuteNonQuery();
+                    #endregion
 
-		public Right()
-		{
-		}
-	}
+                    #region Role
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Roles] WHERE
+                            ([Id] = @Id);
+                        INSERT INTO [dbo].[Roles] ([Id], [Name]) VALUES
+                            (@Id, @Name);
+                        ";
+                    cmd.Parameters.AddWithValue("@Id", entity.Role.Id);
+                    cmd.Parameters.AddWithValue("@Name", entity.Role.Name);
+                    cmd.ExecuteNonQuery();
+                    #endregion
 
-	public partial class RightRepository : BaseRepository
-	{
-	}
-	#endregion
+                    tr.Commit();
+                }
+                catch (Exception)
+                {
+                    tr.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
+    #endregion
 
-	#region Tab
-	public partial class Tab : BaseEntity
-	{
-		/// <summary>
-		/// Get or set Cod
-		/// </summary>
-		public String Cod { get; set; }
+    #region Role
+    public partial class Role : BaseEntity
+    {
+        /// <summary>
+        /// Get or set Id
+        /// </summary>
+        public Int32 Id { get; set; }
 
-		/// <summary>
-		/// Get or set Description
-		/// </summary>
-		public String Description { get; set; }
+        /// <summary>
+        /// Get or set Name
+        /// </summary>
+        public String Name { get; set; }
 
-		/// <summary>
-		/// Get or set Rows
-		/// </summary>
-		public List<Tab> Rows { get; set; }
+        /// <summary>
+        /// Get or set Users
+        /// </summary>
+        public List<User> Users { get; set; }
 
-		public Tab()
-		{
-			Rows = new List<Tab>();
-		}
-	}
+        /// <summary>
+        /// Get or set Rights
+        /// </summary>
+        public List<Right> Rights { get; set; }
 
-	public partial class TabRepository : BaseRepository
-	{
-	}
-	#endregion
+        public Role()
+        {
+            Users = new List<User>();
+            Rights = new List<Right>();
+        }
+    }
 
-	#region TabRow
-	public partial class TabRow : BaseEntity
-	{
-		/// <summary>
-		/// Get or set CodTab
-		/// </summary>
-		public String CodTab { get; set; }
+    public partial class RoleRepository : BaseRepository<Role>
+    {
+        public RoleRepository(SqlConnection conn)
+            : base(conn)
+        {
+        }
 
-		/// <summary>
-		/// Get or set Cod
-		/// </summary>
-		public String Cod { get; set; }
+        /// <summary>
+        /// Insert or update Role
+        /// </summary>
+        /// <param name="entity">Role</param>
+        public override void InsertOrUpdate(Role entity)
+        {
+            using (var tr = Connection.BeginTransaction())
+            using (var cmd = Connection.CreateCommand())
+            {
+                try
+                {
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Roles] WHERE
+                            ([Id] = @Id);
+                        INSERT INTO [dbo].[Roles] ([Id], [Name]) VALUES
+                            (@Id, @Name);
+                        ";
 
-		/// <summary>
-		/// Get or set Description
-		/// </summary>
-		public String Description { get; set; }
+                    cmd.Parameters.AddWithValue("@Id", entity.Id);
+                    cmd.Parameters.AddWithValue("@Name", entity.Name);
+                    cmd.ExecuteNonQuery();
 
-		/// <summary>
-		/// Get or set Tab
-		/// </summary>
-		public Tab Tab { get; set; }
+                    #region Users
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[UserInRoles] WHERE
+                            ([Id] = @Id);
+                        ";
+                    cmd.ExecuteNonQuery();
 
-		public TabRow()
-		{
-		}
-	}
+                    if (entity.Users != null && entity.Users.Count > 0)
+                        foreach (var item in entity.Users)
+                        {
+                            cmd.CommandText = @"
+                                DELETE FROM [dbo].[Users] WHERE
+                                    ([Id] = @Id);
+                                INSERT INTO [dbo].[Users] ([Id], [UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
+                                    (@Id, @UserName, @Email, @FirstName, @LastName, @BirthDate);
+                                ";
 
-	public partial class TabRowRepository : BaseRepository
-	{
-	}
-	#endregion
+                            cmd.Parameters.AddWithValue("@Id", item.Id);
+                            cmd.Parameters.AddWithValue("@UserName", item.UserName);
+                            cmd.Parameters.AddWithValue("@Email", item.Email);
+                            cmd.Parameters.AddWithValue("@FirstName", item.FirstName);
+                            cmd.Parameters.AddWithValue("@LastName", item.LastName);
+                            cmd.Parameters.AddWithValue("@BirthDate", item.BirthDate);
+                            cmd.ExecuteNonQuery();
 
-	#region Function
-	public partial class Function : BaseEntity
-	{
-		/// <summary>
-		/// Get or set Id
-		/// </summary>
-		public Int32 Id { get; set; }
+                            cmd.CommandText = @"
+                                INSERT INTO [dbo].[UserInRoles] ([UserId], [RoleId]) VALUES
+                                    (@UserId, @RoleId);
+                                ";
 
-		/// <summary>
-		/// Get or set Name
-		/// </summary>
-		public String Name { get; set; }
+                            cmd.Parameters.AddWithValue("@UserId", item.Id);
+                            cmd.Parameters.AddWithValue("@RoleId", entity.Id);
+                            cmd.ExecuteNonQuery();
+                        }
+                    #endregion
 
-		public Function()
-		{
-		}
-	}
+                    #region Rights
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Rights] WHERE
+                            ([Id] = @Id);
+                        ";
+                    cmd.ExecuteNonQuery();
 
-	public partial class FunctionRepository : BaseRepository
-	{
-	}
-	#endregion
+                    if (entity.Rights != null && entity.Rights.Count > 0)
+                        foreach (var item in entity.Rights)
+                        {
+                            cmd.CommandText = @"
+                                DELETE FROM [dbo].[Rights] WHERE
+                                    ([RoleId] = @RoleId, [FunctionId] = @FunctionId);
+                                INSERT INTO [dbo].[Rights] ([RoleId], [FunctionId], [IsEnabled]) VALUES
+                                    (@RoleId, @FunctionId, @IsEnabled);
+                                ";
+
+                            cmd.Parameters.AddWithValue("@RoleId", item.RoleId);
+                            cmd.Parameters.AddWithValue("@FunctionId", item.FunctionId);
+                            cmd.Parameters.AddWithValue("@IsEnabled", item.IsEnabled);
+                            cmd.ExecuteNonQuery();
+                            cmd.ExecuteNonQuery();
+                        }
+                    #endregion
+
+                    tr.Commit();
+                }
+                catch (Exception)
+                {
+                    tr.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
+    #endregion
+
+    #region Right
+    public partial class Right : BaseEntity
+    {
+        /// <summary>
+        /// Get or set RoleId
+        /// </summary>
+        public Int32 RoleId { get; set; }
+
+        /// <summary>
+        /// Get or set FunctionId
+        /// </summary>
+        public Int32 FunctionId { get; set; }
+
+        /// <summary>
+        /// Get or set IsEnabled
+        /// </summary>
+        public Boolean IsEnabled { get; set; }
+
+        /// <summary>
+        /// Get or set Function
+        /// </summary>
+        public Function Function { get; set; }
+
+        /// <summary>
+        /// Get or set Role
+        /// </summary>
+        public Role Role { get; set; }
+
+        public Right()
+        {
+        }
+    }
+
+    public partial class RightRepository : BaseRepository<Right>
+    {
+        public RightRepository(SqlConnection conn)
+            : base(conn)
+        {
+        }
+
+        /// <summary>
+        /// Insert or update Right
+        /// </summary>
+        /// <param name="entity">Right</param>
+        public override void InsertOrUpdate(Right entity)
+        {
+            using (var tr = Connection.BeginTransaction())
+            using (var cmd = Connection.CreateCommand())
+            {
+                try
+                {
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Rights] WHERE
+                            ([RoleId] = @RoleId, [FunctionId] = @FunctionId);
+                        INSERT INTO [dbo].[Rights] ([RoleId], [FunctionId], [IsEnabled]) VALUES
+                            (@RoleId, @FunctionId, @IsEnabled);
+                        ";
+
+                    cmd.Parameters.AddWithValue("@RoleId", entity.RoleId);
+                    cmd.Parameters.AddWithValue("@FunctionId", entity.FunctionId);
+                    cmd.Parameters.AddWithValue("@IsEnabled", entity.IsEnabled);
+                    cmd.ExecuteNonQuery();
+
+                    #region Function
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Functions] WHERE
+                            ([Id] = @Id);
+                        INSERT INTO [dbo].[Functions] ([Id], [Name]) VALUES
+                            (@Id, @Name);
+                        ";
+                    cmd.Parameters.AddWithValue("@Id", entity.Function.Id);
+                    cmd.Parameters.AddWithValue("@Name", entity.Function.Name);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+
+                    #region Role
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Roles] WHERE
+                            ([Id] = @Id);
+                        INSERT INTO [dbo].[Roles] ([Id], [Name]) VALUES
+                            (@Id, @Name);
+                        ";
+                    cmd.Parameters.AddWithValue("@Id", entity.Role.Id);
+                    cmd.Parameters.AddWithValue("@Name", entity.Role.Name);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+
+                    tr.Commit();
+                }
+                catch (Exception)
+                {
+                    tr.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
+    #endregion
+
+    #region Tab
+    public partial class Tab : BaseEntity
+    {
+        /// <summary>
+        /// Get or set Cod
+        /// </summary>
+        public String Cod { get; set; }
+
+        /// <summary>
+        /// Get or set Description
+        /// </summary>
+        public String Description { get; set; }
+
+        /// <summary>
+        /// Get or set Rows
+        /// </summary>
+        public List<TabRow> Rows { get; set; }
+
+        public Tab()
+        {
+            Rows = new List<TabRow>();
+        }
+    }
+
+    public partial class TabRepository : BaseRepository<Tab>
+    {
+        public TabRepository(SqlConnection conn)
+            : base(conn)
+        {
+        }
+
+        /// <summary>
+        /// Insert or update Tab
+        /// </summary>
+        /// <param name="entity">Tab</param>
+        public override void InsertOrUpdate(Tab entity)
+        {
+            using (var tr = Connection.BeginTransaction())
+            using (var cmd = Connection.CreateCommand())
+            {
+                try
+                {
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Tabs] WHERE
+                            ([Cod] = @Cod);
+                        INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
+                            (@Cod, @Description);
+                        ";
+
+                    cmd.Parameters.AddWithValue("@Cod", entity.Cod);
+                    cmd.Parameters.AddWithValue("@Description", entity.Description);
+                    cmd.ExecuteNonQuery();
+
+                    #region Rows
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[TabRows] WHERE
+                            ([Cod] = @Cod);
+                        ";
+                    cmd.Parameters.AddWithValue("@Cod", entity.Cod);
+                    cmd.ExecuteNonQuery();
+
+                    if (entity.Rows != null && entity.Rows.Count > 0)
+                        foreach (var item in entity.Rows)
+                        {
+                            cmd.CommandText = @"
+                                DELETE FROM [dbo].[TabRows] WHERE
+                                    ([CodTab] = @CodTab, [Cod] = @Cod);
+                                INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
+                                    (@CodTab, @Cod, @Description);
+                                ";
+
+                            cmd.Parameters.AddWithValue("@CodTab", item.CodTab);
+                            cmd.Parameters.AddWithValue("@Cod", item.Cod);
+                            cmd.Parameters.AddWithValue("@Description", item.Description);
+                            cmd.ExecuteNonQuery();
+                            cmd.ExecuteNonQuery();
+                        }
+                    #endregion
+
+                    tr.Commit();
+                }
+                catch (Exception)
+                {
+                    tr.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
+    #endregion
+
+    #region TabRow
+    public partial class TabRow : BaseEntity
+    {
+        /// <summary>
+        /// Get or set CodTab
+        /// </summary>
+        public String CodTab { get; set; }
+
+        /// <summary>
+        /// Get or set Cod
+        /// </summary>
+        public String Cod { get; set; }
+
+        /// <summary>
+        /// Get or set Description
+        /// </summary>
+        public String Description { get; set; }
+
+        /// <summary>
+        /// Get or set Tab
+        /// </summary>
+        public Tab Tab { get; set; }
+
+        public TabRow()
+        {
+        }
+    }
+
+    public partial class TabRowRepository : BaseRepository<TabRow>
+    {
+        public TabRowRepository(SqlConnection conn)
+            : base(conn)
+        {
+        }
+
+        /// <summary>
+        /// Insert or update TabRow
+        /// </summary>
+        /// <param name="entity">TabRow</param>
+        public override void InsertOrUpdate(TabRow entity)
+        {
+            using (var tr = Connection.BeginTransaction())
+            using (var cmd = Connection.CreateCommand())
+            {
+                try
+                {
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[TabRows] WHERE
+                            ([CodTab] = @CodTab, [Cod] = @Cod);
+                        INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
+                            (@CodTab, @Cod, @Description);
+                        ";
+
+                    cmd.Parameters.AddWithValue("@CodTab", entity.CodTab);
+                    cmd.Parameters.AddWithValue("@Cod", entity.Cod);
+                    cmd.Parameters.AddWithValue("@Description", entity.Description);
+                    cmd.ExecuteNonQuery();
+
+                    #region Tab
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Tabs] WHERE
+                            ([Cod] = @Cod);
+                        INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
+                            (@Cod, @Description);
+                        ";
+                    cmd.Parameters.AddWithValue("@Cod", entity.Tab.Cod);
+                    cmd.Parameters.AddWithValue("@Description", entity.Tab.Description);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+
+                    tr.Commit();
+                }
+                catch (Exception)
+                {
+                    tr.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
+    #endregion
+
+    #region Function
+    public partial class Function : BaseEntity
+    {
+        /// <summary>
+        /// Get or set Id
+        /// </summary>
+        public Int32 Id { get; set; }
+
+        /// <summary>
+        /// Get or set Name
+        /// </summary>
+        public String Name { get; set; }
+
+        public Function()
+        {
+        }
+    }
+
+    public partial class FunctionRepository : BaseRepository<Function>
+    {
+        public FunctionRepository(SqlConnection conn)
+            : base(conn)
+        {
+        }
+
+        /// <summary>
+        /// Insert or update Function
+        /// </summary>
+        /// <param name="entity">Function</param>
+        public override void InsertOrUpdate(Function entity)
+        {
+            using (var tr = Connection.BeginTransaction())
+            using (var cmd = Connection.CreateCommand())
+            {
+                try
+                {
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Functions] WHERE
+                            ([Id] = @Id);
+                        INSERT INTO [dbo].[Functions] ([Id], [Name]) VALUES
+                            (@Id, @Name);
+                        ";
+
+                    cmd.Parameters.AddWithValue("@Id", entity.Id);
+                    cmd.Parameters.AddWithValue("@Name", entity.Name);
+                    cmd.ExecuteNonQuery();
+
+                    tr.Commit();
+                }
+                catch (Exception)
+                {
+                    tr.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
+    #endregion
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace AppBase.ORM
 {
-    public class Entity
+    public class ModelEntity
     {
         /// <summary>
         /// Get or set table name

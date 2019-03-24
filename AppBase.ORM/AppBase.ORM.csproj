@@ -74,6 +74,7 @@
     <Compile Include="ModelField.cs" />
     <Compile Include="ModelManager.cs" />
     <Compile Include="ModelRelation.cs" />
+    <Compile Include="ModelRelationEntityChain.cs" />
     <Compile Include="ModelRelationField.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

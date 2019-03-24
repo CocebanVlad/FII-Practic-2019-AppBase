@@ -12,9 +12,9 @@
 <#@ output extension=".cs" #>
 <#
 var modelPath = Path.Combine(
-Host.ResolveAssemblyReference("$(ProjectDir)"),
-"CompleteModel.json"
-);
+    Host.ResolveAssemblyReference("$(ProjectDir)"),
+        "CompleteModel.json"
+    );
 var model = Model.Load(modelPath);
 #>
 //------------------------------------------------------------------------------
@@ -28,54 +28,216 @@ var model = Model.Load(modelPath);
 
 namespace AppBase.ORM.Entities
 {
-	using System;
-	using System.Collections.Generic;
-	using System.Linq;
-	using System.Text;
-	using System.Threading.Tasks;
+    using System;
+    using System.Collections.Generic;
+    using System.Data.SqlClient;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
 <#
 foreach (var entity in model.Entities)
 {
-	var lists = new Dictionary<string, string>();
+    var lists = new Dictionary<string, string>();
 #>
 
-	#region <#= entity.Name #>
-	public partial class <#= entity.Name #> : BaseEntity
-	{
+    #region <#= entity.Name #>
+    public partial class <#= entity.Name #> : BaseEntity
+    {
 <#
-	foreach (var field in entity.Fields.OrderBy(x => !string.IsNullOrEmpty(x.Relation)))
-	{
-		var type = string.IsNullOrEmpty(field.Relation) 
-			? field.GetFieldType() 
-			: model.GetEntityType(field.Relation, entity);
-		if (type.StartsWith("List<"))
-			lists.Add(field.FieldName, type);
+    foreach (var field in entity.Fields.OrderBy(x => !string.IsNullOrEmpty(x.Relation)))
+    {
+        var type = string.IsNullOrEmpty(field.Relation) 
+            ? field.GetFieldType() 
+            : model.GetEntityType(field.Relation, entity);
+        if (type.StartsWith("List<"))
+            lists.Add(field.FieldName, type);
 #>
-		/// <summary>
-		/// Get or set <#= field.FieldName #>
-		/// </summary>
-		public <#= type #> <#= field.FieldName #> { get; set; }
+        /// <summary>
+        /// Get or set <#= field.FieldName #>
+        /// </summary>
+        public <#= type #> <#= field.FieldName #> { get; set; }
 
 <#
-	}
+    }
 #>
-		public <#= entity.Name #>()
-		{
+        public <#= entity.Name #>()
+        {
 <#
-		foreach (var item in lists)
-		{
+        foreach (var item in lists)
+        {
 #>
-			<#= item.Key #> = new <#= item.Value #>();
+            <#= item.Key #> = new <#= item.Value #>();
 <#
-		}
+        }
 #>
-		}
-	}
+        }
+    }
 
-	public partial class <#= entity.Name #>Repository : BaseRepository
-	{
-	}
-	#endregion
+    public partial class <#= entity.Name #>Repository : BaseRepository<<#= entity.Name #>>
+    {
+        public <#= entity.Name #>Repository(SqlConnection conn)
+            : base(conn)
+        {
+        }
+
+        /// <summary>
+        /// Insert or update <#= entity.Name #>
+        /// </summary>
+        /// <param name="entity"><#= entity.Name #></param>
+        public override void InsertOrUpdate(<#= entity.Name #> entity)
+        {
+            using (var tr = Connection.BeginTransaction())
+            using (var cmd = Connection.CreateCommand())
+            {
+                try
+                {
+<#
+            var entityKeyFields = entity.Fields.Where(x => x.IsKey == true && string.IsNullOrEmpty(x.Relation));
+            var entityInsertFields = entity.Fields.Where(x => string.IsNullOrEmpty(x.Relation));
+#>
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[<#= entity.TableName #>] WHERE
+                            (<#= string.Join(", ", entityKeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>);
+                        INSERT INTO [dbo].[<#= entity.TableName #>] (<#= string.Join(", ", entityInsertFields.Select(x => "[" + x.ColumnName + "]")) #>) VALUES
+                            (<#= string.Join(", ", entityInsertFields.Select(x => "@" + x.FieldName)) #>);
+                        ";
+
+<#
+            foreach (var field in entityInsertFields)
+            {
+#>
+                    cmd.Parameters.AddWithValue("@<#= field.FieldName #>", entity.<#= field.FieldName #>);
+<#
+            }
+#>
+                    cmd.ExecuteNonQuery();
+<#
+            foreach (var relationField in entity.Fields.Where(x => !string.IsNullOrEmpty(x.Relation)))
+            {
+                var chain = model.GetRelationEntityChain(relationField.Relation, entity);
+                var parentKeyFields = chain.Parent.Fields.Where(x => x.IsKey == true && string.IsNullOrEmpty(x.Relation));
+                var parentInsertFields = chain.Parent.Fields.Where(x => string.IsNullOrEmpty(x.Relation));
+                var end2KeyFields = chain.End2.Fields.Where(x => x.IsKey == true && string.IsNullOrEmpty(x.Relation));
+                var end2InsertFields = chain.End2.Fields.Where(x => string.IsNullOrEmpty(x.Relation));
+
+#>
+
+                    #region <#= relationField.FieldName #>
+<#
+                if (lists.ContainsKey(relationField.FieldName))
+                {
+#>
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[<#= chain.Parent.TableName #>] WHERE
+                            (<#= string.Join(", ", chain.Relation.Fields.Select(x => "[" + x.ChildColumnName + "] = @" + x.ChildColumnName)) #>);
+                        ";
+<#
+            foreach (var field in parentKeyFields.Where(x => chain.Relation.Fields.Any(y => y.ChildColumnName.Equals(x.ColumnName))))
+            {
+#>
+                    cmd.Parameters.AddWithValue("@<#= field.FieldName #>", entity.<#= field.FieldName #>);
+<#
+            }
+
+            if (chain.End2 != chain.Parent || chain.End1 != chain.Parent)
+            {
+#>
+                    cmd.ExecuteNonQuery();
+
+                    if (entity.<#= relationField.FieldName #> != null && entity.<#= relationField.FieldName #>.Count > 0)
+                        foreach (var item in entity.<#= relationField.FieldName #>)
+                        {
+                            cmd.CommandText = @"
+                                DELETE FROM [dbo].[<#= chain.End2.TableName #>] WHERE
+                                    (<#= string.Join(", ", end2KeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>);
+                                INSERT INTO [dbo].[<#= chain.End2.TableName #>] (<#= string.Join(", ", end2InsertFields.Select(x => "[" + x.ColumnName + "]")) #>) VALUES
+                                    (<#= string.Join(", ", end2InsertFields.Select(x => "@" + x.FieldName)) #>);
+                                ";
+
+<#
+                foreach (var field in end2InsertFields)
+                {
+#>
+                            cmd.Parameters.AddWithValue("@<#= field.FieldName #>", item.<#= field.FieldName #>);
+<#
+                }
+#>
+                            cmd.ExecuteNonQuery();
+<#
+                if (chain.End2 != chain.Parent && chain.End1 != chain.Parent)
+                {
+#>
+
+                            cmd.CommandText = @"
+                                INSERT INTO [dbo].[<#= chain.Parent.TableName #>] (<#= string.Join(", ", parentInsertFields.Select(x => "[" + x.FieldName + "]")) #>) VALUES
+                                    (<#= string.Join(", ", parentInsertFields.Select(x => "@" + x.FieldName)) #>);
+                                ";
+
+<#
+                    foreach (var relation in chain.Parent.Relations)
+                        foreach (var field in relation.Fields)
+                        {
+                            var entityField = chain.End1.Fields.FirstOrDefault(x => x.Relation == chain.Parent.Name + "." + relation.Name);
+                            if (entityField != null)
+                            {
+                                var relationEntityField = chain.End1.Fields.First(x => x.ColumnName == field.ChildColumnName);
+#>
+                            cmd.Parameters.AddWithValue("@<#= field.ParentColumnName #>", item.<#= relationEntityField.FieldName #>);
+<#
+                            }
+                            else
+                            {
+                                entityField = chain.End2.Fields.FirstOrDefault(x => x.Relation == chain.Parent.Name + "." + relation.Name);
+                                var relationEntityField = chain.End1.Fields.First(x => x.ColumnName == field.ChildColumnName);
+#>
+                            cmd.Parameters.AddWithValue("@<#= field.ParentColumnName #>", entity.<#= relationEntityField.FieldName #>);
+<#
+                            }
+                        }
+                    }
+#>
+                            cmd.ExecuteNonQuery();
+                        }
+<#
+            }
+                }
+                else
+                {
+#>
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[<#= chain.End2.TableName #>] WHERE
+                            (<#= string.Join(", ", end2KeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>);
+                        INSERT INTO [dbo].[<#= chain.End2.TableName #>] (<#= string.Join(", ", end2InsertFields.Select(x => "[" + x.ColumnName + "]")) #>) VALUES
+                            (<#= string.Join(", ", end2InsertFields.Select(x => "@" + x.FieldName)) #>);
+                        ";
+<#
+                foreach (var field in end2InsertFields)
+                {
+#>
+                    cmd.Parameters.AddWithValue("@<#= field.FieldName #>", entity.<#= relationField.FieldName #>.<#= field.FieldName #>);
+<#
+                }
+#>
+                    cmd.ExecuteNonQuery();
+<#
+                }
+#>
+                    #endregion
+<#
+            }
+#>
+
+                    tr.Commit();
+                }
+                catch (Exception)
+                {
+                    tr.Rollback();
+                    throw;
+                }
+            }
+        }
+    }
+    #endregion
 <#
 }
 #>

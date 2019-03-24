@@ -13,38 +13,61 @@ namespace AppBase.ORM
         /// Get or set entities
         /// </summary>
         [JsonProperty("entities")]
-        public IList<Entity> Entities { get; set; }
+        public IList<ModelEntity> Entities { get; set; }
 
         /// <summary>
         /// Get entity type
         /// </summary>
-        /// <param name="relation">Relation</param>
-        /// <param name="end1">Entity END 1</param>
+        /// <param name="relation">Relation name</param>
+        /// <param name="end1">Entity relation END 1</param>
         /// <returns>Type</returns>
-        public string GetEntityType(string relation, Entity end1)
+        public string GetEntityType(string relation, ModelEntity end1)
         {
+            var chain = GetRelationEntityChain(
+                relation,
+                end1
+                );
+            return (chain.End1 == chain.End2 || chain.Parent == chain.End2 ||
+                (end1 != chain.Parent && chain.Parent != chain.End2 && chain.End2 != chain.End1))
+                    ? "List<" + chain.End2.Name + ">"
+                    : chain.End2.Name;
+        }
+
+        /// <summary>
+        /// Get relation entity chain
+        /// </summary>
+        /// <param name="relation">Relation name</param>
+        /// <param name="end1">Entity relation END 1</param>
+        /// <returns>Entity chain</returns>
+        public ModelRelationEntityChain GetRelationEntityChain(string relation, ModelEntity end1)
+        {
+            var chain = new ModelRelationEntityChain();
+            chain.End1 = end1;
+
+            #region Seek chain
             var path = relation
                 .Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries);
             if (path.Length != 2)
                 throw new Exception("Malformed relation");
-            var parent = Entities.FirstOrDefault(
+            chain.Parent = Entities.FirstOrDefault(
                 x => x.Name.Equals(path[0], StringComparison.InvariantCultureIgnoreCase));
-            if (parent == null)
+            if (chain.Parent == null)
                 throw new Exception("Unknown entity \"" + path[0] + "\"");
-            var rel = parent.Relations.FirstOrDefault(
+            chain.Relation = chain.Parent.Relations.FirstOrDefault(
                 x => x.Name.Equals(path[1], StringComparison.InvariantCultureIgnoreCase));
-            if (rel == null)
+            if (chain.Relation == null)
                 throw new Exception("Relation \"" + path[1] + "\" cannot be found on \"" + path[0] + "\"");
-            var end2 = Entities.FirstOrDefault(
-                x => x.Name.Equals(rel.EntityName, StringComparison.InvariantCultureIgnoreCase));
-            if (end2 == null)
-                throw new Exception("Referenced entity \"" + rel.EntityName +
-                    "\" cannot be found by \"" + rel.Name + "\"");
+            chain.End2 = Entities.FirstOrDefault(
+                x => x.Name.Equals(chain.Relation.EntityName, StringComparison.InvariantCultureIgnoreCase));
+            if (chain.End2 == null)
+                throw new Exception("Referenced entity \"" + chain.Relation.EntityName +
+                    "\" cannot be found by \"" + chain.Relation.Name + "\"");
+            if (chain.End2.Equals(chain.End1))
+                chain.End2 =
+                    chain.Parent;
+            #endregion
 
-            return (end1 == end2 || parent == end2 ||
-                (end1 != parent && parent != end2 && end2 != end1))
-                    ? "List<" + end2.Name + ">"
-                    : end2.Name;
+            return chain;
         }
 
         /// <summary>
