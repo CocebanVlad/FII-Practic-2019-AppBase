@@ -8,9 +8,7 @@
           "fieldName": "Roles",
           "relation": "UserInRole.UserInRoles_Roles"
         }
-      ],
-      "key": [],
-      "relations": []
+      ]
     },
     {
       "tableName": "UserInRoles",
@@ -25,11 +23,10 @@
           "relation": "UserInRole.UserInRoles_Roles"
         }
       ],
-      "key": [],
       "relations": [
         {
           "name": "UserInRoles_Users",
-          "tableName": "Users",
+          "entityName": "User",
           "fields": [
             {
               "parentColumnName": "UserId",
@@ -39,7 +36,7 @@
         },
         {
           "name": "UserInRoles_Roles",
-          "tableName": "Roles",
+          "entityName": "Role",
           "fields": [
             {
               "parentColumnName": "RoleId",
@@ -59,11 +56,9 @@
         },
         {
           "fieldName": "Rights",
-          "relation": "Right.Roles_Rights"
+          "relation": "Right.Rights_Roles"
         }
-      ],
-      "key": [],
-      "relations": []
+      ]
     },
     {
       "tableName": "Rights",
@@ -71,18 +66,17 @@
       "fields": [
         {
           "fieldName": "Function",
-          "relation": "Right.Functions_Rights"
+          "relation": "Right.Rights_Functions"
         },
         {
           "fieldName": "Role",
-          "relation": "Right.Roles_Rights"
+          "relation": "Right.Rights_Roles"
         }
       ],
-      "key": [],
       "relations": [
         {
-          "name": "Roles_Rights",
-          "tableName": "Roles",
+          "name": "Rights_Roles",
+          "entityName": "Role",
           "fields": [
             {
               "parentColumnName": "RoleId",
@@ -91,8 +85,8 @@
           ]
         },
         {
-          "name": "Functions_Rights",
-          "tableName": "Functions",
+          "name": "Rights_Functions",
+          "entityName": "Function",
           "fields": [
             {
               "parentColumnName": "FunctionId",
@@ -108,11 +102,9 @@
       "fields": [
         {
           "fieldName": "Rows",
-          "relation": "TabRow.Rows_TabRows"
+          "relation": "TabRow.TabRows_Tabs"
         }
-      ],
-      "key": [],
-      "relations": []
+      ]
     },
     {
       "tableName": "TabRows",
@@ -120,14 +112,13 @@
       "fields": [
         {
           "fieldName": "Tab",
-          "relation": "TabRow.Rows_TabRows"
+          "relation": "TabRow.TabRows_Tabs"
         }
       ],
-      "key": [],
       "relations": [
         {
-          "name": "Rows_TabRows",
-          "tableName": "Tabs",
+          "name": "TabRows_Tabs",
+          "entityName": "Tab",
           "fields": [
             {
               "parentColumnName": "CodTab",
@@ -139,10 +130,7 @@
     },
     {
       "tableName": "Functions",
-      "name": "Function",
-      "fields": [],
-      "key": [],
-      "relations": []
+      "name": "Function"
     }
   ]
 }

@@ -67,7 +67,7 @@
     <Build Include="dbo\Tables\Roles.sql" />
     <Build Include="dbo\Tables\UserInRoles.sql" />
     <Build Include="dbo\Tables\Rights.sql" />
-    <Build Include="dbo\Tables\Function.sql" />
+    <Build Include="dbo\Tables\Functions.sql" />
     <Build Include="dbo\Tables\Tabs.sql" />
     <Build Include="dbo\Tables\TabRows.sql" />
   </ItemGroup>
