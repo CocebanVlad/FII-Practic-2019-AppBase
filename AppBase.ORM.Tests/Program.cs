@@ -12,22 +12,6 @@ namespace AppBase.ORM.Tests
     {
         static void Main(string[] args)
         {
-            //var model = Model.Load("CompleteModel.json");
-            //ModelManager.Complete(model);
-            //foreach (var entity in model.Entities)
-            //    foreach (var field in entity.Fields.Where(x => !string.IsNullOrEmpty(x.Relation)))
-            //    {
-            //        var chain = model
-            //            .GetRelationEntityChain(field.Relation, entity);
-            //        Console.WriteLine("ENTITY       {0}", entity.Name);
-            //        Console.WriteLine("RELATION     {0}", chain.Relation.Name);
-            //        Console.WriteLine("TYPE         {0}", chain.RelationType.ToString());
-            //        Console.WriteLine("END 1        {0}", chain.End1.Name);
-            //        Console.WriteLine("PARENT       {0}", chain.Parent.Name);
-            //        Console.WriteLine("END 2        {0}", chain.End2.Name);
-            //        Console.WriteLine("");
-            //    }
-
             var user = new User();
             user.UserName = "coceban.vlad";
             user.Email = "coceban.vlad@hotmail.com";

@@ -12,14 +12,14 @@ namespace AppBase.EF
     using System;
     using System.Collections.Generic;
     
-    public partial class TabRow
+    public partial class TabRowDetail
     {
         public string CodTab { get; set; }
         public string Cod { get; set; }
-        public string Description { get; set; }
+        public Nullable<int> Pos { get; set; }
+        public string ExtraInfo { get; set; }
     
-        public virtual TabRowDetail TabRowDetail { get; set; }
-        public virtual TabRowDetail TabRowDetail1 { get; set; }
-        public virtual Tab Tab { get; set; }
+        public virtual TabRow TabRow { get; set; }
+        public virtual TabRow TabRow1 { get; set; }
     }
 }

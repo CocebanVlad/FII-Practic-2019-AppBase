@@ -28,6 +28,7 @@ namespace AppBase.EF
         public virtual DbSet<Function> Functions { get; set; }
         public virtual DbSet<Right> Rights { get; set; }
         public virtual DbSet<Role> Roles { get; set; }
+        public virtual DbSet<TabRowDetail> TabRowDetails { get; set; }
         public virtual DbSet<TabRow> TabRows { get; set; }
         public virtual DbSet<Tab> Tabs { get; set; }
         public virtual DbSet<User> Users { get; set; }

@@ -20,8 +20,7 @@ namespace AppBase.EF
             this.Rights = new HashSet<Right>();
         }
     
-        public int Id { get; set; }
-        public string Name { get; set; }
+        public string FunctionName { get; set; }
     
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
         public virtual ICollection<Right> Rights { get; set; }

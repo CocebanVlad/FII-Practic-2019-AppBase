@@ -14,8 +14,8 @@ namespace AppBase.EF
     
     public partial class Right
     {
-        public int RoleId { get; set; }
-        public int FunctionId { get; set; }
+        public string RoleName { get; set; }
+        public string FunctionName { get; set; }
         public bool IsEnabled { get; set; }
     
         public virtual Function Function { get; set; }
