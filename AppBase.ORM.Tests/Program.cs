@@ -4,6 +4,7 @@ using System.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Diagnostics;
 
 namespace AppBase.ORM.Tests
 {
@@ -11,7 +12,7 @@ namespace AppBase.ORM.Tests
     {
         static void Main(string[] args)
         {
-            //var model = Model.Load("Model.json");
+            //var model = Model.Load("CompleteModel.json");
             //ModelManager.Complete(model);
             //foreach (var entity in model.Entities)
             //    foreach (var field in entity.Fields.Where(x => !string.IsNullOrEmpty(x.Relation)))
@@ -26,6 +27,7 @@ namespace AppBase.ORM.Tests
             //        Console.WriteLine("END 2        {0}", chain.End2.Name);
             //        Console.WriteLine("");
             //    }
+
             var user = new User();
             user.UserName = "coceban.vlad";
             user.Email = "coceban.vlad@hotmail.com";
@@ -51,15 +53,11 @@ namespace AppBase.ORM.Tests
             {
                 conn.Open();
                 var repo = (UserRepository)user.CreateRepository(conn);
+                repo.Delete(user);
                 repo.InsertOrUpdate(user);
-
-                //user.FirstName = "Vlad";
-                //user.LastName = "Coceban";
-                //user.BirthDate = DateTime.Now;
-                //repo.InsertOrUpdate(user);
-
-                //repo.Delete(user);
             }
+
+            Console.ReadKey();
         }
     }
 }

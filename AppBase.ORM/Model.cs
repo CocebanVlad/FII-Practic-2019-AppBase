@@ -116,6 +116,69 @@ namespace AppBase.ORM
         }
 
         /// <summary>
+        /// Get entity relation hierarchy
+        /// </summary>
+        /// <param name="rootEntity">Root entity</param>
+        /// <returns>Entity hierarchy</returns>
+        public List<ModelEntity> GetEntityRelationHierarchy(ModelEntity rootEntity)
+        {
+            var bag = new Dictionary<ModelEntity, HashSet<ModelEntity>>();
+            var res = new List<ModelEntity>();
+
+            #region Collect dependencies
+            Action<ModelEntity> depCollAct = null;
+            depCollAct =
+                new Action<ModelEntity>((currEntity) =>
+                {
+                    if (bag.ContainsKey(currEntity))
+                        return;
+                    bag.Add(currEntity, new HashSet<ModelEntity>());
+                    foreach (var field in
+                        currEntity.Fields.Where(x => !string.IsNullOrEmpty(x.Relation)))
+                    {
+                        var chain = GetRelationEntityChain(
+                            field.Relation,
+                            currEntity
+                            );
+                        switch (chain.RelationType)
+                        {
+                            case ModelRelationEntityChainType.ManyToMany:
+                                depCollAct(chain.Parent);
+                                break;
+                            case ModelRelationEntityChainType.ManyToOne:
+                                bag[currEntity].Add(chain.End2);
+                                depCollAct(chain.End2);
+                                break;
+                            default:
+                                depCollAct(chain.End2);
+                                break;
+                        }
+                    }
+                });
+            depCollAct(rootEntity);
+            #endregion
+
+            #region Sort by dependencies
+            while (bag.Count > 0)
+            {
+                var currEntity =
+                    bag.FirstOrDefault(x => x.Value.Count == 0);
+                if (currEntity.Key == null)
+                    currEntity = bag.First();
+
+                bag.Remove(currEntity.Key);
+
+                foreach (var entity in bag)
+                    entity.Value.Remove(currEntity.Key);
+
+                res.Add(currEntity.Key);
+            }
+            #endregion
+
+            return res;
+        }
+
+        /// <summary>
         /// Serialize object
         /// </summary>
         /// <returns>A JSON</returns>

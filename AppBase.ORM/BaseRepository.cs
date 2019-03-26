@@ -12,12 +12,20 @@ namespace AppBase.ORM
         /// </summary>
         protected SqlConnection Connection { get; }
 
-        public BaseRepository(SqlConnection conn)
+        /// <summary>
+        /// Get entity relation hierarchy
+        /// </summary>
+        protected List<Type> Hierarchy { get; }
+
+        public BaseRepository(SqlConnection conn, List<Type> hierarchy)
         {
             if (conn == null)
                 throw new ArgumentNullException("conn");
+            if (hierarchy == null)
+                throw new ArgumentNullException("hierarchy");
 
             Connection = conn;
+            Hierarchy = hierarchy;
         }
 
         /// <summary>

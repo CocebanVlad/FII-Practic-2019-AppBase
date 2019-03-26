@@ -129,8 +129,8 @@ namespace AppBase.ORM
                 return
                     IsNullable == true &&
                     type.IsValueType
-                        ? "Nullable<" + type.Name + ">"
-                        : type.Name;
+                        ? "Nullable<" + type.FullName + ">"
+                        : type.FullName;
 
             throw new ModelException("Unknown ColumnType \"" + colType + "\"");
         }

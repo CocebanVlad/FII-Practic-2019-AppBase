@@ -32,6 +32,7 @@ namespace AppBase.ORM.Entities
     using System.Collections.Generic;
     using System.Data;
     using System.Data.SqlClient;
+    using System.Diagnostics;
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
@@ -48,7 +49,7 @@ foreach (var entity in model.Entities)
     foreach (var field in entity.Fields.OrderBy(x => !string.IsNullOrEmpty(x.Relation)))
     {
         var accessFns = "get; set;";
-        var type = string.IsNullOrEmpty(field.Relation) 
+        var type = string.IsNullOrEmpty(field.Relation)
             ? field.GetFieldType()
             : model.GetEntityType(field.Relation, entity);
         if (type.StartsWith("BaseEntityCollection<"))
@@ -97,8 +98,11 @@ foreach (var entity in model.Entities)
 
     public partial class <#= entity.Name #>Repository : BaseRepository
     {
+<#
+        var hierarchy = model.GetEntityRelationHierarchy(entity);
+#>
         public <#= entity.Name #>Repository(SqlConnection conn)
-            : base(conn)
+            : base(conn, new List<Type>() { <#= string.Join(", ", hierarchy.Select(x => "typeof(" + x.Name + ")")) #> })
         {
         }
 
@@ -119,7 +123,7 @@ foreach (var entity in model.Entities)
                     "<#= entity.Name #>Repository " +
                     "cannot perform operations on \"" + entity.GetType().Name + "\""
                     );
-            
+
             var typedEntity = (<#= entity.Name #>)entity;
 
 <#
@@ -134,6 +138,9 @@ foreach (var entity in model.Entities)
 <#
             foreach (var field in fieldsToValidate)
             {
+                var type = Type.GetType(field.GetFieldType());
+                if (type.IsValueType)
+                    continue;
 #>
             if (typedEntity.<#= field.FieldName #> == null)
                 throw new ArgumentNullException("entity.<#= field.FieldName #>");
@@ -152,7 +159,7 @@ foreach (var entity in model.Entities)
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
-                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         if (nestedEntity != typedEntity)
                             nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
 
@@ -178,6 +185,9 @@ foreach (var entity in model.Entities)
             }
         }
 #>
+                Debug.WriteLine("<#= entity.Name #>Repository.InsertOrUpdate: INSERT INTO [dbo].[<#= entity.TableName #>]; " +
+                    "SkipNestedObjects=" + skipNestedObjects);
+                Debug.WriteLine("    " + <#= string.Join(" + \";\" + ", entityKeyFields.Select(x => "\"" + x.FieldName + "=\" + typedEntity." + x.FieldName)) #>);
                 cmd.ExecuteNonQuery();
                 #endregion
 
@@ -226,6 +236,9 @@ foreach (var entity in model.Entities)
 <#
                     }
 #>
+                    Debug.WriteLine("<#= entity.Name #>Repository.InsertOrUpdate: INSERT INTO [dbo].[<#= relationChain.Parent.TableName #>]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + <#= string.Join(" + \";\" + ", entityKeyFields.Select(x => "\"" + x.FieldName + "=\" + typedEntity." + x.FieldName)) #>);
                     cmd.ExecuteNonQuery();
                 }
                 #endregion
@@ -255,7 +268,7 @@ foreach (var entity in model.Entities)
                     "<#= entity.Name #>Repository " +
                     "cannot perform operations on \"" + entity.GetType().Name + "\""
                     );
-            
+
             var typedEntity = (<#= entity.Name #>)entity;
 
             using (var cmd = Connection.CreateCommand())
@@ -287,7 +300,7 @@ foreach (var entity in model.Entities)
                     if (relationChain.RelationType == ModelRelationEntityChainType.ManyToMany)
                         nestedObjectsToSkip.Add(relationField);
                     if (relationChain.RelationType == ModelRelationEntityChainType.OneToMany)
-                        if (relationFields.All(x => x.Value.IsNullable == true) && 
+                        if (relationFields.All(x => x.Value.IsNullable == true) &&
                             relationField.CascadeDelete != true)
                         {
                             nestedObjectsToSkip.Add(relationField);
@@ -308,6 +321,9 @@ foreach (var entity in model.Entities)
 <#
                     }
 #>
+                Debug.WriteLine("<#= entity.Name #>Repository.Delete: DELETE FROM [dbo].[<#= relationChain.Parent.TableName #>]; " +
+                    "SkipNestedObjects=" + skipNestedObjects);
+                Debug.WriteLine("    " + <#= string.Join(" + \";\" + ", entityKeyFields.Select(x => "\"" + x.FieldName + "=\" + typedEntity." + x.FieldName)) #>);
                 cmd.ExecuteNonQuery();
                 #endregion
 
@@ -334,7 +350,7 @@ foreach (var entity in model.Entities)
         }
 #>
                 if (!skipNestedObjects)
-                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         if (nestedEntity != typedEntity)
                             nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
@@ -366,6 +382,9 @@ foreach (var entity in model.Entities)
 <#
         }
 #>
+                Debug.WriteLine("<#= entity.Name #>Repository.Delete: DELETE FROM [dbo].[<#= entity.TableName #>]; " +
+                    "SkipNestedObjects=" + skipNestedObjects);
+                Debug.WriteLine("    " + <#= string.Join(" + \"; \" + ", entityKeyFields.Select(x => "\"" + x.FieldName + "=\" + typedEntity." + x.FieldName)) #>);
                 cmd.ExecuteNonQuery();
                 #endregion
             }
