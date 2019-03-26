@@ -21,39 +21,81 @@ namespace AppBase.ORM.Entities
     #region User
     public partial class User : BaseEntity
     {
+        #region UserName
+        private System.String _userName;
         /// <summary>
         /// Get or set UserName
         /// </summary>
-        public System.String UserName { get; set; }
+        public System.String UserName
+        {
+            get { return _userName; }
+            set { _userName = value; }
+        }
+        #endregion
 
+        #region Email
+        private System.String _email;
         /// <summary>
         /// Get or set Email
         /// </summary>
-        public System.String Email { get; set; }
+        public System.String Email
+        {
+            get { return _email; }
+            set { _email = value; }
+        }
+        #endregion
 
+        #region FirstName
+        private System.String _firstName;
         /// <summary>
         /// Get or set FirstName
         /// </summary>
-        public System.String FirstName { get; set; }
+        public System.String FirstName
+        {
+            get { return _firstName; }
+            set { _firstName = value; }
+        }
+        #endregion
 
+        #region LastName
+        private System.String _lastName;
         /// <summary>
         /// Get or set LastName
         /// </summary>
-        public System.String LastName { get; set; }
+        public System.String LastName
+        {
+            get { return _lastName; }
+            set { _lastName = value; }
+        }
+        #endregion
 
+        #region BirthDate
+        private Nullable<System.DateTime> _birthDate;
         /// <summary>
         /// Get or set BirthDate
         /// </summary>
-        public Nullable<System.DateTime> BirthDate { get; set; }
+        public Nullable<System.DateTime> BirthDate
+        {
+            get { return _birthDate; }
+            set { _birthDate = value; }
+        }
+        #endregion
 
+        #region Roles
+        private BaseEntityCollection<Role> _roles;
         /// <summary>
         /// Get or set Roles
         /// </summary>
-        public BaseEntityCollection<Role> Roles { get; internal set; }
+        public BaseEntityCollection<Role> Roles
+        {
+            get { return _roles; }
+            internal set { _roles = value; }
+        }
+        #endregion
 
         public User()
         {
-            Roles = new BaseEntityCollection<Role>();
+            _roles = new BaseEntityCollection<Role>();
         }
 
         /// <summary>
@@ -215,25 +257,53 @@ namespace AppBase.ORM.Entities
     #region UserInRole
     public partial class UserInRole : BaseEntity
     {
+        #region UserName
+        private System.String _userName;
         /// <summary>
         /// Get or set UserName
         /// </summary>
-        public System.String UserName { get; set; }
+        public System.String UserName
+        {
+            get { return _userName; }
+            set { _userName = value; }
+        }
+        #endregion
 
+        #region RoleName
+        private System.String _roleName;
         /// <summary>
         /// Get or set RoleName
         /// </summary>
-        public System.String RoleName { get; set; }
+        public System.String RoleName
+        {
+            get { return _roleName; }
+            set { _roleName = value; }
+        }
+        #endregion
 
+        #region User
+        private User _user;
         /// <summary>
         /// Get or set User
         /// </summary>
-        public User User { get; set; }
+        public User User
+        {
+            get { return _user; }
+            set { _user = value; }
+        }
+        #endregion
 
+        #region Role
+        private Role _role;
         /// <summary>
         /// Get or set Role
         /// </summary>
-        public Role Role { get; set; }
+        public Role Role
+        {
+            get { return _role; }
+            set { _role = value; }
+        }
+        #endregion
 
         public UserInRole()
         {
@@ -369,25 +439,46 @@ namespace AppBase.ORM.Entities
     #region Role
     public partial class Role : BaseEntity
     {
+        #region RoleName
+        private System.String _roleName;
         /// <summary>
         /// Get or set RoleName
         /// </summary>
-        public System.String RoleName { get; set; }
+        public System.String RoleName
+        {
+            get { return _roleName; }
+            set { _roleName = value; }
+        }
+        #endregion
 
+        #region Users
+        private BaseEntityCollection<User> _users;
         /// <summary>
         /// Get or set Users
         /// </summary>
-        public BaseEntityCollection<User> Users { get; internal set; }
+        public BaseEntityCollection<User> Users
+        {
+            get { return _users; }
+            internal set { _users = value; }
+        }
+        #endregion
 
+        #region Rights
+        private BaseEntityCollection<Right> _rights;
         /// <summary>
         /// Get or set Rights
         /// </summary>
-        public BaseEntityCollection<Right> Rights { get; internal set; }
+        public BaseEntityCollection<Right> Rights
+        {
+            get { return _rights; }
+            internal set { _rights = value; }
+        }
+        #endregion
 
         public Role()
         {
-            Users = new BaseEntityCollection<User>();
-            Rights = new BaseEntityCollection<Right>();
+            _users = new BaseEntityCollection<User>();
+            _rights = new BaseEntityCollection<Right>();
         }
 
         /// <summary>
@@ -556,30 +647,65 @@ namespace AppBase.ORM.Entities
     #region Right
     public partial class Right : BaseEntity
     {
+        #region RoleName
+        private System.String _roleName;
         /// <summary>
         /// Get or set RoleName
         /// </summary>
-        public System.String RoleName { get; set; }
+        public System.String RoleName
+        {
+            get { return _roleName; }
+            set { _roleName = value; }
+        }
+        #endregion
 
+        #region FunctionName
+        private System.String _functionName;
         /// <summary>
         /// Get or set FunctionName
         /// </summary>
-        public System.String FunctionName { get; set; }
+        public System.String FunctionName
+        {
+            get { return _functionName; }
+            set { _functionName = value; }
+        }
+        #endregion
 
+        #region IsEnabled
+        private System.Boolean _isEnabled;
         /// <summary>
         /// Get or set IsEnabled
         /// </summary>
-        public System.Boolean IsEnabled { get; set; }
+        public System.Boolean IsEnabled
+        {
+            get { return _isEnabled; }
+            set { _isEnabled = value; }
+        }
+        #endregion
 
+        #region Function
+        private Function _function;
         /// <summary>
         /// Get or set Function
         /// </summary>
-        public Function Function { get; set; }
+        public Function Function
+        {
+            get { return _function; }
+            set { _function = value; }
+        }
+        #endregion
 
+        #region Role
+        private Role _role;
         /// <summary>
         /// Get or set Role
         /// </summary>
-        public Role Role { get; set; }
+        public Role Role
+        {
+            get { return _role; }
+            set { _role = value; }
+        }
+        #endregion
 
         public Right()
         {
@@ -716,24 +842,45 @@ namespace AppBase.ORM.Entities
     #region Tab
     public partial class Tab : BaseEntity
     {
+        #region Cod
+        private System.String _cod;
         /// <summary>
         /// Get or set Cod
         /// </summary>
-        public System.String Cod { get; set; }
+        public System.String Cod
+        {
+            get { return _cod; }
+            set { _cod = value; }
+        }
+        #endregion
 
+        #region Description
+        private System.String _description;
         /// <summary>
         /// Get or set Description
         /// </summary>
-        public System.String Description { get; set; }
+        public System.String Description
+        {
+            get { return _description; }
+            set { _description = value; }
+        }
+        #endregion
 
+        #region Rows
+        private BaseEntityCollection<TabRow> _rows;
         /// <summary>
         /// Get or set Rows
         /// </summary>
-        public BaseEntityCollection<TabRow> Rows { get; internal set; }
+        public BaseEntityCollection<TabRow> Rows
+        {
+            get { return _rows; }
+            internal set { _rows = value; }
+        }
+        #endregion
 
         public Tab()
         {
-            Rows = new BaseEntityCollection<TabRow>();
+            _rows = new BaseEntityCollection<TabRow>();
         }
 
         /// <summary>
@@ -870,30 +1017,65 @@ namespace AppBase.ORM.Entities
     #region TabRow
     public partial class TabRow : BaseEntity
     {
+        #region CodTab
+        private System.String _codTab;
         /// <summary>
         /// Get or set CodTab
         /// </summary>
-        public System.String CodTab { get; set; }
+        public System.String CodTab
+        {
+            get { return _codTab; }
+            set { _codTab = value; }
+        }
+        #endregion
 
+        #region Cod
+        private System.String _cod;
         /// <summary>
         /// Get or set Cod
         /// </summary>
-        public System.String Cod { get; set; }
+        public System.String Cod
+        {
+            get { return _cod; }
+            set { _cod = value; }
+        }
+        #endregion
 
+        #region Description
+        private System.String _description;
         /// <summary>
         /// Get or set Description
         /// </summary>
-        public System.String Description { get; set; }
+        public System.String Description
+        {
+            get { return _description; }
+            set { _description = value; }
+        }
+        #endregion
 
+        #region Tab
+        private Tab _tab;
         /// <summary>
         /// Get or set Tab
         /// </summary>
-        public Tab Tab { get; set; }
+        public Tab Tab
+        {
+            get { return _tab; }
+            set { _tab = value; }
+        }
+        #endregion
 
+        #region Detail
+        private TabRowDetail _detail;
         /// <summary>
         /// Get or set Detail
         /// </summary>
-        public TabRowDetail Detail { get; set; }
+        public TabRowDetail Detail
+        {
+            get { return _detail; }
+            set { _detail = value; }
+        }
+        #endregion
 
         public TabRow()
         {
@@ -1029,30 +1211,65 @@ namespace AppBase.ORM.Entities
     #region TabRowDetail
     public partial class TabRowDetail : BaseEntity
     {
+        #region CodTab
+        private System.String _codTab;
         /// <summary>
         /// Get or set CodTab
         /// </summary>
-        public System.String CodTab { get; set; }
+        public System.String CodTab
+        {
+            get { return _codTab; }
+            set { _codTab = value; }
+        }
+        #endregion
 
+        #region Cod
+        private System.String _cod;
         /// <summary>
         /// Get or set Cod
         /// </summary>
-        public System.String Cod { get; set; }
+        public System.String Cod
+        {
+            get { return _cod; }
+            set { _cod = value; }
+        }
+        #endregion
 
+        #region Pos
+        private Nullable<System.Int32> _pos;
         /// <summary>
         /// Get or set Pos
         /// </summary>
-        public Nullable<System.Int32> Pos { get; set; }
+        public Nullable<System.Int32> Pos
+        {
+            get { return _pos; }
+            set { _pos = value; }
+        }
+        #endregion
 
+        #region ExtraInfo
+        private System.String _extraInfo;
         /// <summary>
         /// Get or set ExtraInfo
         /// </summary>
-        public System.String ExtraInfo { get; set; }
+        public System.String ExtraInfo
+        {
+            get { return _extraInfo; }
+            set { _extraInfo = value; }
+        }
+        #endregion
 
+        #region TabRow
+        private TabRow _tabRow;
         /// <summary>
         /// Get or set TabRow
         /// </summary>
-        public TabRow TabRow { get; set; }
+        public TabRow TabRow
+        {
+            get { return _tabRow; }
+            set { _tabRow = value; }
+        }
+        #endregion
 
         public TabRowDetail()
         {
@@ -1182,10 +1399,17 @@ namespace AppBase.ORM.Entities
     #region Function
     public partial class Function : BaseEntity
     {
+        #region FunctionName
+        private System.String _functionName;
         /// <summary>
         /// Get or set FunctionName
         /// </summary>
-        public System.String FunctionName { get; set; }
+        public System.String FunctionName
+        {
+            get { return _functionName; }
+            set { _functionName = value; }
+        }
+        #endregion
 
         public Function()
         {

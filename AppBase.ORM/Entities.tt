@@ -48,23 +48,32 @@ foreach (var entity in model.Entities)
 <#
     foreach (var field in entity.Fields.OrderBy(x => !string.IsNullOrEmpty(x.Relation)))
     {
-        var accessFns = "get; set;";
+        var privateFieldName = "_" + Char.ToLowerInvariant(field.FieldName[0]) + field.FieldName.Substring(1);
+        var getFn = "get { return " + privateFieldName + "; }";
+        var setFn = "set { " + privateFieldName + " = value; }";
         var type = string.IsNullOrEmpty(field.Relation)
             ? field.GetFieldType()
             : model.GetEntityType(field.Relation, entity);
         if (type.StartsWith("BaseEntityCollection<"))
         {
-            accessFns = "get; internal set;";
+            setFn = "internal " + setFn;
             lists.Add(
-                field.FieldName,
+                privateFieldName,
                 type
                 );
         }
 #>
+        #region <#= field.FieldName #>
+        private <#= type #> <#= privateFieldName #>;
         /// <summary>
         /// Get or set <#= field.FieldName #>
         /// </summary>
-        public <#= type #> <#= field.FieldName #> { <#= accessFns #> }
+        public <#= type #> <#= field.FieldName #>
+        {
+            <#= getFn #>
+            <#= setFn #>
+        }
+        #endregion
 
 <#
     }
