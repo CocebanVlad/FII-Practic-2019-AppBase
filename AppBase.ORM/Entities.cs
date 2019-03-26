@@ -11,6 +11,7 @@ namespace AppBase.ORM.Entities
 {
     using System;
     using System.Collections.Generic;
+    using System.Data;
     using System.Data.SqlClient;
     using System.Linq;
     using System.Text;
@@ -19,11 +20,6 @@ namespace AppBase.ORM.Entities
     #region User
     public partial class User : BaseEntity
     {
-        /// <summary>
-        /// Get or set Id
-        /// </summary>
-        public Int32 Id { get; set; }
-
         /// <summary>
         /// Get or set UserName
         /// </summary>
@@ -52,15 +48,25 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Roles
         /// </summary>
-        public List<Role> Roles { get; set; }
+        public BaseEntityCollection<Role> Roles { get; internal set; }
 
         public User()
         {
-            Roles = new List<Role>();
+            Roles = new BaseEntityCollection<Role>();
+        }
+
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new UserRepository(conn);
         }
     }
 
-    public partial class UserRepository : BaseRepository<User>
+    public partial class UserRepository : BaseRepository
     {
         public UserRepository(SqlConnection conn)
             : base(conn)
@@ -68,70 +74,126 @@ namespace AppBase.ORM.Entities
         }
 
         /// <summary>
-        /// Insert or update User
+        /// Insert or update entity
         /// </summary>
-        /// <param name="entity">User</param>
-        public override void InsertOrUpdate(User entity)
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
         {
-            using (var tr = Connection.BeginTransaction())
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is User))
+                throw new ModelException(
+                    "UserRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (User)entity;
+
+            #region Validate fields
+            if (typedEntity.UserName == null)
+                throw new ArgumentNullException("entity.UserName");
+            if (typedEntity.Email == null)
+                throw new ArgumentNullException("entity.Email");
+            #endregion
+
+            Delete(entity, tr, skipNestedObjects);
+
             using (var cmd = Connection.CreateCommand())
             {
-                try
+                cmd.Transaction = tr;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+
+                #region Insert User
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[Users] ([UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
+                        (@UserName, @Email, @FirstName, @LastName, @BirthDate);
+                    ";
+                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
+                cmd.Parameters.AddWithValue("@Email", typedEntity.Email);
+                cmd.Parameters.AddWithValue("@FirstName", typedEntity.FirstName ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@LastName", typedEntity.LastName ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@BirthDate", typedEntity.BirthDate ?? (object)DBNull.Value);
+                cmd.ExecuteNonQuery();
+                #endregion
+
+                #region Insert UserInRole
+                foreach (var item in typedEntity.Roles)
                 {
+                    cmd.Parameters.Clear();
                     cmd.CommandText = @"
-                        DELETE FROM [dbo].[Users] WHERE
-                            ([Id] = @Id);
-                        INSERT INTO [dbo].[Users] ([Id], [UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
-                            (@Id, @UserName, @Email, @FirstName, @LastName, @BirthDate);
+                        INSERT INTO [dbo].[UserInRoles] ([UserName], [RoleName]) VALUES
+                            (@UserName, @RoleName);
                         ";
-
-                    cmd.Parameters.AddWithValue("@Id", entity.Id);
-                    cmd.Parameters.AddWithValue("@UserName", entity.UserName);
-                    cmd.Parameters.AddWithValue("@Email", entity.Email);
-                    cmd.Parameters.AddWithValue("@FirstName", entity.FirstName);
-                    cmd.Parameters.AddWithValue("@LastName", entity.LastName);
-                    cmd.Parameters.AddWithValue("@BirthDate", entity.BirthDate);
+                    cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
+                    cmd.Parameters.AddWithValue("@RoleName", item.RoleName);
                     cmd.ExecuteNonQuery();
-
-                    #region Roles
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[UserInRoles] WHERE
-                            ([Id] = @Id);
-                        ";
-                    cmd.ExecuteNonQuery();
-
-                    if (entity.Roles != null && entity.Roles.Count > 0)
-                        foreach (var item in entity.Roles)
-                        {
-                            cmd.CommandText = @"
-                                DELETE FROM [dbo].[Roles] WHERE
-                                    ([Id] = @Id);
-                                INSERT INTO [dbo].[Roles] ([Id], [Name]) VALUES
-                                    (@Id, @Name);
-                                ";
-
-                            cmd.Parameters.AddWithValue("@Id", item.Id);
-                            cmd.Parameters.AddWithValue("@Name", item.Name);
-                            cmd.ExecuteNonQuery();
-
-                            cmd.CommandText = @"
-                                INSERT INTO [dbo].[UserInRoles] ([UserId], [RoleId]) VALUES
-                                    (@UserId, @RoleId);
-                                ";
-
-                            cmd.Parameters.AddWithValue("@UserId", entity.Id);
-                            cmd.Parameters.AddWithValue("@RoleId", item.Id);
-                            cmd.ExecuteNonQuery();
-                        }
-                    #endregion
-
-                    tr.Commit();
                 }
-                catch (Exception)
-                {
-                    tr.Rollback();
-                    throw;
-                }
+                #endregion
+
+            }
+        }
+
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is User))
+                throw new ModelException(
+                    "UserRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (User)entity;
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                #region Delete UserInRole
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[UserInRoles] WHERE
+                        ([UserName] = @UserName);
+                    ";
+                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
+                cmd.ExecuteNonQuery();
+                #endregion
+
+                var tempRoles = typedEntity.Roles;
+                typedEntity.Roles = null;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+                typedEntity.Roles = tempRoles;
+
+                #region Delete User
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[Users] WHERE
+                        ([UserName] = @UserName);
+                    ";
+                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
+                cmd.ExecuteNonQuery();
+                #endregion
             }
         }
     }
@@ -141,14 +203,14 @@ namespace AppBase.ORM.Entities
     public partial class UserInRole : BaseEntity
     {
         /// <summary>
-        /// Get or set UserId
+        /// Get or set UserName
         /// </summary>
-        public Int32 UserId { get; set; }
+        public String UserName { get; set; }
 
         /// <summary>
-        /// Get or set RoleId
+        /// Get or set RoleName
         /// </summary>
-        public Int32 RoleId { get; set; }
+        public String RoleName { get; set; }
 
         /// <summary>
         /// Get or set User
@@ -163,9 +225,19 @@ namespace AppBase.ORM.Entities
         public UserInRole()
         {
         }
+
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new UserInRoleRepository(conn);
+        }
     }
 
-    public partial class UserInRoleRepository : BaseRepository<UserInRole>
+    public partial class UserInRoleRepository : BaseRepository
     {
         public UserInRoleRepository(SqlConnection conn)
             : base(conn)
@@ -173,62 +245,103 @@ namespace AppBase.ORM.Entities
         }
 
         /// <summary>
-        /// Insert or update UserInRole
+        /// Insert or update entity
         /// </summary>
-        /// <param name="entity">UserInRole</param>
-        public override void InsertOrUpdate(UserInRole entity)
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
         {
-            using (var tr = Connection.BeginTransaction())
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is UserInRole))
+                throw new ModelException(
+                    "UserInRoleRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (UserInRole)entity;
+
+            #region Validate fields
+            if (typedEntity.UserName == null)
+                throw new ArgumentNullException("entity.UserName");
+            if (typedEntity.RoleName == null)
+                throw new ArgumentNullException("entity.RoleName");
+            #endregion
+
+            Delete(entity, tr, skipNestedObjects);
+
             using (var cmd = Connection.CreateCommand())
             {
-                try
-                {
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[UserInRoles] WHERE
-                            ([UserId] = @UserId, [RoleId] = @RoleId);
-                        INSERT INTO [dbo].[UserInRoles] ([UserId], [RoleId]) VALUES
-                            (@UserId, @RoleId);
-                        ";
+                cmd.Transaction = tr;
 
-                    cmd.Parameters.AddWithValue("@UserId", entity.UserId);
-                    cmd.Parameters.AddWithValue("@RoleId", entity.RoleId);
-                    cmd.ExecuteNonQuery();
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
 
-                    #region User
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Users] WHERE
-                            ([Id] = @Id);
-                        INSERT INTO [dbo].[Users] ([Id], [UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
-                            (@Id, @UserName, @Email, @FirstName, @LastName, @BirthDate);
-                        ";
-                    cmd.Parameters.AddWithValue("@Id", entity.User.Id);
-                    cmd.Parameters.AddWithValue("@UserName", entity.User.UserName);
-                    cmd.Parameters.AddWithValue("@Email", entity.User.Email);
-                    cmd.Parameters.AddWithValue("@FirstName", entity.User.FirstName);
-                    cmd.Parameters.AddWithValue("@LastName", entity.User.LastName);
-                    cmd.Parameters.AddWithValue("@BirthDate", entity.User.BirthDate);
-                    cmd.ExecuteNonQuery();
-                    #endregion
+                #region Insert UserInRole
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[UserInRoles] ([UserName], [RoleName]) VALUES
+                        (@UserName, @RoleName);
+                    ";
+                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
+                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                cmd.ExecuteNonQuery();
+                #endregion
 
-                    #region Role
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Roles] WHERE
-                            ([Id] = @Id);
-                        INSERT INTO [dbo].[Roles] ([Id], [Name]) VALUES
-                            (@Id, @Name);
-                        ";
-                    cmd.Parameters.AddWithValue("@Id", entity.Role.Id);
-                    cmd.Parameters.AddWithValue("@Name", entity.Role.Name);
-                    cmd.ExecuteNonQuery();
-                    #endregion
+            }
+        }
 
-                    tr.Commit();
-                }
-                catch (Exception)
-                {
-                    tr.Rollback();
-                    throw;
-                }
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is UserInRole))
+                throw new ModelException(
+                    "UserInRoleRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (UserInRole)entity;
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                var tempUser = typedEntity.User;
+                typedEntity.User = null;
+                var tempRole = typedEntity.Role;
+                typedEntity.Role = null;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+                typedEntity.User = tempUser;
+                typedEntity.Role = tempRole;
+
+                #region Delete UserInRole
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[UserInRoles] WHERE
+                        ([UserName] = @UserName AND [RoleName] = @RoleName);
+                    ";
+                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
+                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                cmd.ExecuteNonQuery();
+                #endregion
             }
         }
     }
@@ -238,33 +351,38 @@ namespace AppBase.ORM.Entities
     public partial class Role : BaseEntity
     {
         /// <summary>
-        /// Get or set Id
+        /// Get or set RoleName
         /// </summary>
-        public Int32 Id { get; set; }
-
-        /// <summary>
-        /// Get or set Name
-        /// </summary>
-        public String Name { get; set; }
+        public String RoleName { get; set; }
 
         /// <summary>
         /// Get or set Users
         /// </summary>
-        public List<User> Users { get; set; }
+        public BaseEntityCollection<User> Users { get; internal set; }
 
         /// <summary>
         /// Get or set Rights
         /// </summary>
-        public List<Right> Rights { get; set; }
+        public BaseEntityCollection<Right> Rights { get; internal set; }
 
         public Role()
         {
-            Users = new List<User>();
-            Rights = new List<Right>();
+            Users = new BaseEntityCollection<User>();
+            Rights = new BaseEntityCollection<Right>();
+        }
+
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new RoleRepository(conn);
         }
     }
 
-    public partial class RoleRepository : BaseRepository<Role>
+    public partial class RoleRepository : BaseRepository
     {
         public RoleRepository(SqlConnection conn)
             : base(conn)
@@ -272,95 +390,130 @@ namespace AppBase.ORM.Entities
         }
 
         /// <summary>
-        /// Insert or update Role
+        /// Insert or update entity
         /// </summary>
-        /// <param name="entity">Role</param>
-        public override void InsertOrUpdate(Role entity)
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
         {
-            using (var tr = Connection.BeginTransaction())
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Role))
+                throw new ModelException(
+                    "RoleRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (Role)entity;
+
+            #region Validate fields
+            if (typedEntity.RoleName == null)
+                throw new ArgumentNullException("entity.RoleName");
+            #endregion
+
+            Delete(entity, tr, skipNestedObjects);
+
             using (var cmd = Connection.CreateCommand())
             {
-                try
+                cmd.Transaction = tr;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+
+                #region Insert Role
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[Roles] ([RoleName]) VALUES
+                        (@RoleName);
+                    ";
+                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                cmd.ExecuteNonQuery();
+                #endregion
+
+                #region Insert UserInRole
+                foreach (var item in typedEntity.Users)
                 {
+                    cmd.Parameters.Clear();
                     cmd.CommandText = @"
-                        DELETE FROM [dbo].[Roles] WHERE
-                            ([Id] = @Id);
-                        INSERT INTO [dbo].[Roles] ([Id], [Name]) VALUES
-                            (@Id, @Name);
+                        INSERT INTO [dbo].[UserInRoles] ([RoleName], [UserName]) VALUES
+                            (@RoleName, @UserName);
                         ";
-
-                    cmd.Parameters.AddWithValue("@Id", entity.Id);
-                    cmd.Parameters.AddWithValue("@Name", entity.Name);
+                    cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                    cmd.Parameters.AddWithValue("@UserName", item.UserName);
                     cmd.ExecuteNonQuery();
-
-                    #region Users
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[UserInRoles] WHERE
-                            ([Id] = @Id);
-                        ";
-                    cmd.ExecuteNonQuery();
-
-                    if (entity.Users != null && entity.Users.Count > 0)
-                        foreach (var item in entity.Users)
-                        {
-                            cmd.CommandText = @"
-                                DELETE FROM [dbo].[Users] WHERE
-                                    ([Id] = @Id);
-                                INSERT INTO [dbo].[Users] ([Id], [UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
-                                    (@Id, @UserName, @Email, @FirstName, @LastName, @BirthDate);
-                                ";
-
-                            cmd.Parameters.AddWithValue("@Id", item.Id);
-                            cmd.Parameters.AddWithValue("@UserName", item.UserName);
-                            cmd.Parameters.AddWithValue("@Email", item.Email);
-                            cmd.Parameters.AddWithValue("@FirstName", item.FirstName);
-                            cmd.Parameters.AddWithValue("@LastName", item.LastName);
-                            cmd.Parameters.AddWithValue("@BirthDate", item.BirthDate);
-                            cmd.ExecuteNonQuery();
-
-                            cmd.CommandText = @"
-                                INSERT INTO [dbo].[UserInRoles] ([UserId], [RoleId]) VALUES
-                                    (@UserId, @RoleId);
-                                ";
-
-                            cmd.Parameters.AddWithValue("@UserId", item.Id);
-                            cmd.Parameters.AddWithValue("@RoleId", entity.Id);
-                            cmd.ExecuteNonQuery();
-                        }
-                    #endregion
-
-                    #region Rights
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Rights] WHERE
-                            ([Id] = @Id);
-                        ";
-                    cmd.ExecuteNonQuery();
-
-                    if (entity.Rights != null && entity.Rights.Count > 0)
-                        foreach (var item in entity.Rights)
-                        {
-                            cmd.CommandText = @"
-                                DELETE FROM [dbo].[Rights] WHERE
-                                    ([RoleId] = @RoleId, [FunctionId] = @FunctionId);
-                                INSERT INTO [dbo].[Rights] ([RoleId], [FunctionId], [IsEnabled]) VALUES
-                                    (@RoleId, @FunctionId, @IsEnabled);
-                                ";
-
-                            cmd.Parameters.AddWithValue("@RoleId", item.RoleId);
-                            cmd.Parameters.AddWithValue("@FunctionId", item.FunctionId);
-                            cmd.Parameters.AddWithValue("@IsEnabled", item.IsEnabled);
-                            cmd.ExecuteNonQuery();
-                            cmd.ExecuteNonQuery();
-                        }
-                    #endregion
-
-                    tr.Commit();
                 }
-                catch (Exception)
-                {
-                    tr.Rollback();
-                    throw;
-                }
+                #endregion
+
+            }
+        }
+
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Role))
+                throw new ModelException(
+                    "RoleRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (Role)entity;
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                #region Delete UserInRole
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[UserInRoles] WHERE
+                        ([RoleName] = @RoleName);
+                    ";
+                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                cmd.ExecuteNonQuery();
+                #endregion
+
+                #region Delete Right
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[Rights] WHERE
+                        ([RoleName] = @RoleName);
+                    ";
+                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                cmd.ExecuteNonQuery();
+                #endregion
+
+                var tempUsers = typedEntity.Users;
+                typedEntity.Users = null;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+                typedEntity.Users = tempUsers;
+
+                #region Delete Role
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[Roles] WHERE
+                        ([RoleName] = @RoleName);
+                    ";
+                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                cmd.ExecuteNonQuery();
+                #endregion
             }
         }
     }
@@ -370,14 +523,14 @@ namespace AppBase.ORM.Entities
     public partial class Right : BaseEntity
     {
         /// <summary>
-        /// Get or set RoleId
+        /// Get or set RoleName
         /// </summary>
-        public Int32 RoleId { get; set; }
+        public String RoleName { get; set; }
 
         /// <summary>
-        /// Get or set FunctionId
+        /// Get or set FunctionName
         /// </summary>
-        public Int32 FunctionId { get; set; }
+        public String FunctionName { get; set; }
 
         /// <summary>
         /// Get or set IsEnabled
@@ -397,9 +550,19 @@ namespace AppBase.ORM.Entities
         public Right()
         {
         }
+
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new RightRepository(conn);
+        }
     }
 
-    public partial class RightRepository : BaseRepository<Right>
+    public partial class RightRepository : BaseRepository
     {
         public RightRepository(SqlConnection conn)
             : base(conn)
@@ -407,59 +570,106 @@ namespace AppBase.ORM.Entities
         }
 
         /// <summary>
-        /// Insert or update Right
+        /// Insert or update entity
         /// </summary>
-        /// <param name="entity">Right</param>
-        public override void InsertOrUpdate(Right entity)
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
         {
-            using (var tr = Connection.BeginTransaction())
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Right))
+                throw new ModelException(
+                    "RightRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (Right)entity;
+
+            #region Validate fields
+            if (typedEntity.RoleName == null)
+                throw new ArgumentNullException("entity.RoleName");
+            if (typedEntity.FunctionName == null)
+                throw new ArgumentNullException("entity.FunctionName");
+            if (typedEntity.IsEnabled == null)
+                throw new ArgumentNullException("entity.IsEnabled");
+            #endregion
+
+            Delete(entity, tr, skipNestedObjects);
+
             using (var cmd = Connection.CreateCommand())
             {
-                try
-                {
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Rights] WHERE
-                            ([RoleId] = @RoleId, [FunctionId] = @FunctionId);
-                        INSERT INTO [dbo].[Rights] ([RoleId], [FunctionId], [IsEnabled]) VALUES
-                            (@RoleId, @FunctionId, @IsEnabled);
-                        ";
+                cmd.Transaction = tr;
 
-                    cmd.Parameters.AddWithValue("@RoleId", entity.RoleId);
-                    cmd.Parameters.AddWithValue("@FunctionId", entity.FunctionId);
-                    cmd.Parameters.AddWithValue("@IsEnabled", entity.IsEnabled);
-                    cmd.ExecuteNonQuery();
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
 
-                    #region Function
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Functions] WHERE
-                            ([Id] = @Id);
-                        INSERT INTO [dbo].[Functions] ([Id], [Name]) VALUES
-                            (@Id, @Name);
-                        ";
-                    cmd.Parameters.AddWithValue("@Id", entity.Function.Id);
-                    cmd.Parameters.AddWithValue("@Name", entity.Function.Name);
-                    cmd.ExecuteNonQuery();
-                    #endregion
+                #region Insert Right
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[Rights] ([RoleName], [FunctionName], [IsEnabled]) VALUES
+                        (@RoleName, @FunctionName, @IsEnabled);
+                    ";
+                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
+                cmd.Parameters.AddWithValue("@IsEnabled", typedEntity.IsEnabled);
+                cmd.ExecuteNonQuery();
+                #endregion
 
-                    #region Role
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Roles] WHERE
-                            ([Id] = @Id);
-                        INSERT INTO [dbo].[Roles] ([Id], [Name]) VALUES
-                            (@Id, @Name);
-                        ";
-                    cmd.Parameters.AddWithValue("@Id", entity.Role.Id);
-                    cmd.Parameters.AddWithValue("@Name", entity.Role.Name);
-                    cmd.ExecuteNonQuery();
-                    #endregion
+            }
+        }
 
-                    tr.Commit();
-                }
-                catch (Exception)
-                {
-                    tr.Rollback();
-                    throw;
-                }
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Right))
+                throw new ModelException(
+                    "RightRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (Right)entity;
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                var tempFunction = typedEntity.Function;
+                typedEntity.Function = null;
+                var tempRole = typedEntity.Role;
+                typedEntity.Role = null;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+                typedEntity.Function = tempFunction;
+                typedEntity.Role = tempRole;
+
+                #region Delete Right
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[Rights] WHERE
+                        ([RoleName] = @RoleName AND [FunctionName] = @FunctionName);
+                    ";
+                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
+                cmd.ExecuteNonQuery();
+                #endregion
             }
         }
     }
@@ -481,15 +691,25 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Rows
         /// </summary>
-        public List<TabRow> Rows { get; set; }
+        public BaseEntityCollection<TabRow> Rows { get; internal set; }
 
         public Tab()
         {
-            Rows = new List<TabRow>();
+            Rows = new BaseEntityCollection<TabRow>();
+        }
+
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new TabRepository(conn);
         }
     }
 
-    public partial class TabRepository : BaseRepository<Tab>
+    public partial class TabRepository : BaseRepository
     {
         public TabRepository(SqlConnection conn)
             : base(conn)
@@ -497,60 +717,104 @@ namespace AppBase.ORM.Entities
         }
 
         /// <summary>
-        /// Insert or update Tab
+        /// Insert or update entity
         /// </summary>
-        /// <param name="entity">Tab</param>
-        public override void InsertOrUpdate(Tab entity)
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
         {
-            using (var tr = Connection.BeginTransaction())
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Tab))
+                throw new ModelException(
+                    "TabRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (Tab)entity;
+
+            #region Validate fields
+            if (typedEntity.Cod == null)
+                throw new ArgumentNullException("entity.Cod");
+            if (typedEntity.Description == null)
+                throw new ArgumentNullException("entity.Description");
+            #endregion
+
+            Delete(entity, tr, skipNestedObjects);
+
             using (var cmd = Connection.CreateCommand())
             {
-                try
-                {
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Tabs] WHERE
-                            ([Cod] = @Cod);
-                        INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
-                            (@Cod, @Description);
-                        ";
+                cmd.Transaction = tr;
 
-                    cmd.Parameters.AddWithValue("@Cod", entity.Cod);
-                    cmd.Parameters.AddWithValue("@Description", entity.Description);
-                    cmd.ExecuteNonQuery();
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
 
-                    #region Rows
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[TabRows] WHERE
-                            ([Cod] = @Cod);
-                        ";
-                    cmd.Parameters.AddWithValue("@Cod", entity.Cod);
-                    cmd.ExecuteNonQuery();
+                #region Insert Tab
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
+                        (@Cod, @Description);
+                    ";
+                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
+                cmd.Parameters.AddWithValue("@Description", typedEntity.Description);
+                cmd.ExecuteNonQuery();
+                #endregion
 
-                    if (entity.Rows != null && entity.Rows.Count > 0)
-                        foreach (var item in entity.Rows)
-                        {
-                            cmd.CommandText = @"
-                                DELETE FROM [dbo].[TabRows] WHERE
-                                    ([CodTab] = @CodTab, [Cod] = @Cod);
-                                INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
-                                    (@CodTab, @Cod, @Description);
-                                ";
+            }
+        }
 
-                            cmd.Parameters.AddWithValue("@CodTab", item.CodTab);
-                            cmd.Parameters.AddWithValue("@Cod", item.Cod);
-                            cmd.Parameters.AddWithValue("@Description", item.Description);
-                            cmd.ExecuteNonQuery();
-                            cmd.ExecuteNonQuery();
-                        }
-                    #endregion
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Tab))
+                throw new ModelException(
+                    "TabRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (Tab)entity;
 
-                    tr.Commit();
-                }
-                catch (Exception)
-                {
-                    tr.Rollback();
-                    throw;
-                }
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                #region Delete TabRow
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[TabRows] WHERE
+                        ([CodTab] = @Cod);
+                    ";
+                cmd.Parameters.AddWithValue("@CodTab", typedEntity.Cod);
+                cmd.ExecuteNonQuery();
+                #endregion
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+                #region Delete Tab
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[Tabs] WHERE
+                        ([Cod] = @Cod);
+                    ";
+                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
+                cmd.ExecuteNonQuery();
+                #endregion
             }
         }
     }
@@ -579,12 +843,27 @@ namespace AppBase.ORM.Entities
         /// </summary>
         public Tab Tab { get; set; }
 
+        /// <summary>
+        /// Get or set Detail
+        /// </summary>
+        public TabRowDetail Detail { get; set; }
+
         public TabRow()
         {
         }
+
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new TabRowRepository(conn);
+        }
     }
 
-    public partial class TabRowRepository : BaseRepository<TabRow>
+    public partial class TabRowRepository : BaseRepository
     {
         public TabRowRepository(SqlConnection conn)
             : base(conn)
@@ -592,47 +871,250 @@ namespace AppBase.ORM.Entities
         }
 
         /// <summary>
-        /// Insert or update TabRow
+        /// Insert or update entity
         /// </summary>
-        /// <param name="entity">TabRow</param>
-        public override void InsertOrUpdate(TabRow entity)
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
         {
-            using (var tr = Connection.BeginTransaction())
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is TabRow))
+                throw new ModelException(
+                    "TabRowRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (TabRow)entity;
+
+            #region Validate fields
+            if (typedEntity.CodTab == null)
+                throw new ArgumentNullException("entity.CodTab");
+            if (typedEntity.Cod == null)
+                throw new ArgumentNullException("entity.Cod");
+            if (typedEntity.Description == null)
+                throw new ArgumentNullException("entity.Description");
+            #endregion
+
+            Delete(entity, tr, skipNestedObjects);
+
             using (var cmd = Connection.CreateCommand())
             {
-                try
-                {
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[TabRows] WHERE
-                            ([CodTab] = @CodTab, [Cod] = @Cod);
-                        INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
-                            (@CodTab, @Cod, @Description);
-                        ";
+                cmd.Transaction = tr;
 
-                    cmd.Parameters.AddWithValue("@CodTab", entity.CodTab);
-                    cmd.Parameters.AddWithValue("@Cod", entity.Cod);
-                    cmd.Parameters.AddWithValue("@Description", entity.Description);
-                    cmd.ExecuteNonQuery();
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
 
-                    #region Tab
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Tabs] WHERE
-                            ([Cod] = @Cod);
-                        INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
-                            (@Cod, @Description);
-                        ";
-                    cmd.Parameters.AddWithValue("@Cod", entity.Tab.Cod);
-                    cmd.Parameters.AddWithValue("@Description", entity.Tab.Description);
-                    cmd.ExecuteNonQuery();
-                    #endregion
+                #region Insert TabRow
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
+                        (@CodTab, @Cod, @Description);
+                    ";
+                cmd.Parameters.AddWithValue("@CodTab", typedEntity.CodTab);
+                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
+                cmd.Parameters.AddWithValue("@Description", typedEntity.Description);
+                cmd.ExecuteNonQuery();
+                #endregion
 
-                    tr.Commit();
-                }
-                catch (Exception)
-                {
-                    tr.Rollback();
-                    throw;
-                }
+            }
+        }
+
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is TabRow))
+                throw new ModelException(
+                    "TabRowRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (TabRow)entity;
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                var tempTab = typedEntity.Tab;
+                typedEntity.Tab = null;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+                typedEntity.Tab = tempTab;
+
+                #region Delete TabRow
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[TabRows] WHERE
+                        ([CodTab] = @CodTab AND [Cod] = @Cod);
+                    ";
+                cmd.Parameters.AddWithValue("@CodTab", typedEntity.CodTab);
+                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
+                cmd.ExecuteNonQuery();
+                #endregion
+            }
+        }
+    }
+    #endregion
+
+    #region TabRowDetail
+    public partial class TabRowDetail : BaseEntity
+    {
+        /// <summary>
+        /// Get or set CodTab
+        /// </summary>
+        public String CodTab { get; set; }
+
+        /// <summary>
+        /// Get or set Cod
+        /// </summary>
+        public String Cod { get; set; }
+
+        /// <summary>
+        /// Get or set Pos
+        /// </summary>
+        public Nullable<Int32> Pos { get; set; }
+
+        /// <summary>
+        /// Get or set ExtraInfo
+        /// </summary>
+        public String ExtraInfo { get; set; }
+
+        /// <summary>
+        /// Get or set TabRow
+        /// </summary>
+        public TabRow TabRow { get; set; }
+
+        public TabRowDetail()
+        {
+        }
+
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new TabRowDetailRepository(conn);
+        }
+    }
+
+    public partial class TabRowDetailRepository : BaseRepository
+    {
+        public TabRowDetailRepository(SqlConnection conn)
+            : base(conn)
+        {
+        }
+
+        /// <summary>
+        /// Insert or update entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is TabRowDetail))
+                throw new ModelException(
+                    "TabRowDetailRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (TabRowDetail)entity;
+
+            #region Validate fields
+            if (typedEntity.CodTab == null)
+                throw new ArgumentNullException("entity.CodTab");
+            if (typedEntity.Cod == null)
+                throw new ArgumentNullException("entity.Cod");
+            #endregion
+
+            Delete(entity, tr, skipNestedObjects);
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+
+                #region Insert TabRowDetail
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[TabRowDetails] ([CodTab], [Cod], [Pos], [ExtraInfo]) VALUES
+                        (@CodTab, @Cod, @Pos, @ExtraInfo);
+                    ";
+                cmd.Parameters.AddWithValue("@CodTab", typedEntity.CodTab);
+                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
+                cmd.Parameters.AddWithValue("@Pos", typedEntity.Pos ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@ExtraInfo", typedEntity.ExtraInfo ?? (object)DBNull.Value);
+                cmd.ExecuteNonQuery();
+                #endregion
+
+            }
+        }
+
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is TabRowDetail))
+                throw new ModelException(
+                    "TabRowDetailRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (TabRowDetail)entity;
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+                #region Delete TabRowDetail
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[TabRowDetails] WHERE
+                        ([CodTab] = @CodTab AND [Cod] = @Cod);
+                    ";
+                cmd.Parameters.AddWithValue("@CodTab", typedEntity.CodTab);
+                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
+                cmd.ExecuteNonQuery();
+                #endregion
             }
         }
     }
@@ -642,21 +1124,26 @@ namespace AppBase.ORM.Entities
     public partial class Function : BaseEntity
     {
         /// <summary>
-        /// Get or set Id
+        /// Get or set FunctionName
         /// </summary>
-        public Int32 Id { get; set; }
-
-        /// <summary>
-        /// Get or set Name
-        /// </summary>
-        public String Name { get; set; }
+        public String FunctionName { get; set; }
 
         public Function()
         {
         }
+
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new FunctionRepository(conn);
+        }
     }
 
-    public partial class FunctionRepository : BaseRepository<Function>
+    public partial class FunctionRepository : BaseRepository
     {
         public FunctionRepository(SqlConnection conn)
             : base(conn)
@@ -664,34 +1151,91 @@ namespace AppBase.ORM.Entities
         }
 
         /// <summary>
-        /// Insert or update Function
+        /// Insert or update entity
         /// </summary>
-        /// <param name="entity">Function</param>
-        public override void InsertOrUpdate(Function entity)
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
         {
-            using (var tr = Connection.BeginTransaction())
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Function))
+                throw new ModelException(
+                    "FunctionRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (Function)entity;
+
+            #region Validate fields
+            if (typedEntity.FunctionName == null)
+                throw new ArgumentNullException("entity.FunctionName");
+            #endregion
+
+            Delete(entity, tr, skipNestedObjects);
+
             using (var cmd = Connection.CreateCommand())
             {
-                try
-                {
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[Functions] WHERE
-                            ([Id] = @Id);
-                        INSERT INTO [dbo].[Functions] ([Id], [Name]) VALUES
-                            (@Id, @Name);
-                        ";
+                cmd.Transaction = tr;
 
-                    cmd.Parameters.AddWithValue("@Id", entity.Id);
-                    cmd.Parameters.AddWithValue("@Name", entity.Name);
-                    cmd.ExecuteNonQuery();
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
 
-                    tr.Commit();
-                }
-                catch (Exception)
-                {
-                    tr.Rollback();
-                    throw;
-                }
+                #region Insert Function
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[Functions] ([FunctionName]) VALUES
+                        (@FunctionName);
+                    ";
+                cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
+                cmd.ExecuteNonQuery();
+                #endregion
+
+            }
+        }
+
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Function))
+                throw new ModelException(
+                    "FunctionRepository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (Function)entity;
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+                #region Delete Function
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[Functions] WHERE
+                        ([FunctionName] = @FunctionName);
+                    ";
+                cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
+                cmd.ExecuteNonQuery();
+                #endregion
             }
         }
     }

@@ -1,8 +1,8 @@
 ﻿CREATE TABLE [dbo].[UserInRoles] (
-    [User] nvarchar(250) NOT NULL,
-    [Role] NVARCHAR (50) NOT NULL,
-    CONSTRAINT [PK_UserInRoles] PRIMARY KEY CLUSTERED ([User] ASC, [Role] ASC),
-    CONSTRAINT [FK_UserInRoles_Roles] FOREIGN KEY ([Role]) REFERENCES [dbo].[Roles] ([Name]),
-    CONSTRAINT [FK_UserInRoles_Users] FOREIGN KEY ([User]) REFERENCES [dbo].[Users] ([UserName])
+    [UserName] NVARCHAR (250) NOT NULL,
+    [RoleName] NVARCHAR (50)  NOT NULL,
+    CONSTRAINT [PK_UserInRoles] PRIMARY KEY CLUSTERED ([UserName] ASC, [RoleName] ASC),
+    CONSTRAINT [FK_UserInRoles_Roles] FOREIGN KEY ([RoleName]) REFERENCES [dbo].[Roles] ([RoleName]),
+    CONSTRAINT [FK_UserInRoles_Users] FOREIGN KEY ([UserName]) REFERENCES [dbo].[Users] ([UserName])
 );
 

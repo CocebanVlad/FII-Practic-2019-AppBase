@@ -63,6 +63,7 @@
   <ItemGroup>
     <Compile Include="BaseEntity.cs" />
     <Compile Include="BaseRepository.cs" />
+    <Compile Include="BaseEntityCollection.cs" />
     <Compile Include="CommonHelpers.cs" />
     <Compile Include="Entities.cs">
       <AutoGen>True</AutoGen>
@@ -71,10 +72,12 @@
     </Compile>
     <Compile Include="Model.cs" />
     <Compile Include="ModelEntity.cs" />
+    <Compile Include="ModelException.cs" />
     <Compile Include="ModelField.cs" />
     <Compile Include="ModelManager.cs" />
     <Compile Include="ModelRelation.cs" />
     <Compile Include="ModelRelationEntityChain.cs" />
+    <Compile Include="ModelRelationEntityChainType.cs" />
     <Compile Include="ModelRelationField.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -91,6 +94,7 @@
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>CompleteModel.tt</DependentUpon>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="Model.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

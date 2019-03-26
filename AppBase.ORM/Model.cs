@@ -27,9 +27,10 @@ namespace AppBase.ORM
                 relation,
                 end1
                 );
-            return (chain.End1 == chain.End2 || chain.Parent == chain.End2 ||
-                (end1 != chain.Parent && chain.Parent != chain.End2 && chain.End2 != chain.End1))
-                    ? "List<" + chain.End2.Name + ">"
+            return
+                (chain.RelationType == ModelRelationEntityChainType.ManyToMany ||
+                 chain.RelationType == ModelRelationEntityChainType.OneToMany)
+                    ? "BaseEntityCollection<" + chain.End2.Name + ">"
                     : chain.End2.Name;
         }
 
@@ -48,23 +49,67 @@ namespace AppBase.ORM
             var path = relation
                 .Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries);
             if (path.Length != 2)
-                throw new Exception("Malformed relation");
+                throw new ModelException("Malformed relation");
             chain.Parent = Entities.FirstOrDefault(
                 x => x.Name.Equals(path[0], StringComparison.InvariantCultureIgnoreCase));
             if (chain.Parent == null)
-                throw new Exception("Unknown entity \"" + path[0] + "\"");
+                throw new ModelException("Unknown entity \"" + path[0] + "\"");
             chain.Relation = chain.Parent.Relations.FirstOrDefault(
                 x => x.Name.Equals(path[1], StringComparison.InvariantCultureIgnoreCase));
             if (chain.Relation == null)
-                throw new Exception("Relation \"" + path[1] + "\" cannot be found on \"" + path[0] + "\"");
+                throw new ModelException("Relation \"" + path[1] + "\" cannot be found on \"" + path[0] + "\"");
             chain.End2 = Entities.FirstOrDefault(
                 x => x.Name.Equals(chain.Relation.EntityName, StringComparison.InvariantCultureIgnoreCase));
             if (chain.End2 == null)
-                throw new Exception("Referenced entity \"" + chain.Relation.EntityName +
+                throw new ModelException("Referenced entity \"" + chain.Relation.EntityName +
                     "\" cannot be found by \"" + chain.Relation.Name + "\"");
-            if (chain.End2.Equals(chain.End1))
+
+            // @if END 1 is the same as END 2 then relation parent should become the new END 2;
+            if (chain.End1 == chain.End2)
                 chain.End2 =
                     chain.Parent;
+            #endregion
+
+            #region Find relation type
+            if (chain.End1 != chain.Parent &&
+                chain.End1 != chain.End2 && chain.Parent != chain.End2)
+            {
+                chain.RelationType = ModelRelationEntityChainType.ManyToMany;
+                if (!chain.Parent.Fields.Where(
+                    x => string.IsNullOrEmpty(x.Relation)).All(x => x.IsKey == true))
+                {
+                    chain.End2 = chain.Parent;
+                    chain.RelationType = ModelRelationEntityChainType.ManyToOne;
+                }
+            }
+            else
+            {
+                var relationEnd1KeyFields = new Dictionary<string, ModelField>(StringComparer.InvariantCultureIgnoreCase);
+                foreach (var item in chain.Relation.Fields)
+                    relationEnd1KeyFields.Add(item.ParentColumnName,
+                        chain.End1.Fields.FirstOrDefault(x =>
+                            x.ColumnName != null &&
+                            x.ColumnName.Equals(item.ParentColumnName, StringComparison.InvariantCultureIgnoreCase))
+                            );
+                var relationEnd2KeyFields = new Dictionary<string, ModelField>(StringComparer.InvariantCultureIgnoreCase);
+                foreach (var item in chain.Relation.Fields)
+                    relationEnd2KeyFields.Add(item.ChildColumnName,
+                        chain.End2.Fields.FirstOrDefault(x =>
+                            x.ColumnName != null &&
+                            x.ColumnName.Equals(item.ChildColumnName, StringComparison.InvariantCultureIgnoreCase))
+                            );
+
+                var numOfKeysOnEnd1 = chain.End1.Fields.Count(x => x.IsKey == true);
+                var numOfKeysOnEnd2 = chain.End2.Fields.Count(x => x.IsKey == true);
+                if (numOfKeysOnEnd1 == numOfKeysOnEnd2 &&
+                    relationEnd1KeyFields.Count == relationEnd2KeyFields.Count &&
+                    numOfKeysOnEnd1 == relationEnd1KeyFields.Count)
+                    chain.RelationType = ModelRelationEntityChainType.OneToOne;
+                else if (numOfKeysOnEnd1 == relationEnd1KeyFields.Count)
+                    chain.RelationType = ModelRelationEntityChainType.OneToMany;
+                else if (numOfKeysOnEnd2 == relationEnd2KeyFields.Count)
+                    chain.RelationType = ModelRelationEntityChainType.ManyToOne;
+            }
             #endregion
 
             return chain;

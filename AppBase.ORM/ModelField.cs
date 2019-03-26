@@ -18,6 +18,12 @@ namespace AppBase.ORM
         public string Relation { get; set; }
 
         /// <summary>
+        /// Get or set the flag specifying whether to delete or not external entities when parent is deleted
+        /// </summary>
+        [JsonProperty("cascadeDelete")]
+        public bool? CascadeDelete { get; set; }
+
+        /// <summary>
         /// Get or set the column name
         /// </summary>
         [JsonProperty("columnName")]
@@ -126,7 +132,7 @@ namespace AppBase.ORM
                         ? "Nullable<" + type.Name + ">"
                         : type.Name;
 
-            throw new Exception("Unknown ColumnType \"" + colType + "\"");
+            throw new ModelException("Unknown ColumnType \"" + colType + "\"");
         }
     }
 }

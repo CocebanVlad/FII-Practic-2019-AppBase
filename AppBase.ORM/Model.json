@@ -29,8 +29,8 @@
           "entityName": "User",
           "fields": [
             {
-              "parentColumnName": "UserId",
-              "childColumnName": "Id"
+              "parentColumnName": "UserName",
+              "childColumnName": "UserName"
             }
           ]
         },
@@ -39,8 +39,8 @@
           "entityName": "Role",
           "fields": [
             {
-              "parentColumnName": "RoleId",
-              "childColumnName": "Id"
+              "parentColumnName": "RoleName",
+              "childColumnName": "RoleName"
             }
           ]
         }
@@ -79,8 +79,8 @@
           "entityName": "Role",
           "fields": [
             {
-              "parentColumnName": "RoleId",
-              "childColumnName": "Id"
+              "parentColumnName": "RoleName",
+              "childColumnName": "RoleName"
             }
           ]
         },
@@ -89,8 +89,8 @@
           "entityName": "Function",
           "fields": [
             {
-              "parentColumnName": "FunctionId",
-              "childColumnName": "Id"
+              "parentColumnName": "FunctionName",
+              "childColumnName": "FunctionName"
             }
           ]
         }
@@ -113,6 +113,10 @@
         {
           "fieldName": "Tab",
           "relation": "TabRow.TabRows_Tabs"
+        },
+        {
+          "fieldName": "Detail",
+          "relation": "TabRow.TabRows_TabRowDetails"
         }
       ],
       "relations": [
@@ -125,6 +129,30 @@
               "childColumnName": "Cod"
             }
           ]
+        },
+        {
+          "name": "TabRows_TabRowDetails",
+          "entityName": "TabRowDetail",
+          "fields": [
+            {
+              "parentColumnName": "CodTab",
+              "childColumnName": "CodTab"
+            },
+            {
+              "parentColumnName": "Cod",
+              "childColumnName": "Cod"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tableName": "TabRowDetails",
+      "name": "TabRowDetail",
+      "fields": [
+        {
+          "fieldName": "TabRow",
+          "relation": "TabRow.TabRows_TabRowDetails"
         }
       ]
     },

@@ -8,7 +8,13 @@
         public ModelRelation Relation { get; set; }
 
         /// <summary>
-        /// Get or set entity relation END 1
+        /// Get or set entity relation type
+        /// </summary>
+        public ModelRelationEntityChainType RelationType { get; set; } =
+            ModelRelationEntityChainType.Unknown;
+
+        /// <summary>
+        /// Get or set entity relation END-1
         /// </summary>
         public ModelEntity End1 { get; set; }
 
@@ -18,7 +24,7 @@
         public ModelEntity Parent { get; set; }
 
         /// <summary>
-        /// Get or set entity relation END 2
+        /// Get or set entity relation END-2
         /// </summary>
         public ModelEntity End2 { get; set; }
     }

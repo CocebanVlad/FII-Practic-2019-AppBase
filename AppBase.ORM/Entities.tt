@@ -30,6 +30,7 @@ namespace AppBase.ORM.Entities
 {
     using System;
     using System.Collections.Generic;
+    using System.Data;
     using System.Data.SqlClient;
     using System.Linq;
     using System.Text;
@@ -46,16 +47,23 @@ foreach (var entity in model.Entities)
 <#
     foreach (var field in entity.Fields.OrderBy(x => !string.IsNullOrEmpty(x.Relation)))
     {
+        var accessFns = "get; set;";
         var type = string.IsNullOrEmpty(field.Relation) 
-            ? field.GetFieldType() 
+            ? field.GetFieldType()
             : model.GetEntityType(field.Relation, entity);
-        if (type.StartsWith("List<"))
-            lists.Add(field.FieldName, type);
+        if (type.StartsWith("BaseEntityCollection<"))
+        {
+            accessFns = "get; internal set;";
+            lists.Add(
+                field.FieldName,
+                type
+                );
+        }
 #>
         /// <summary>
         /// Get or set <#= field.FieldName #>
         /// </summary>
-        public <#= type #> <#= field.FieldName #> { get; set; }
+        public <#= type #> <#= field.FieldName #> { <#= accessFns #> }
 
 <#
     }
@@ -71,9 +79,23 @@ foreach (var entity in model.Entities)
         }
 #>
         }
-    }
 
-    public partial class <#= entity.Name #>Repository : BaseRepository<<#= entity.Name #>>
+        /// <summary>
+        /// Create a new instance of repository
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        /// <returns>Repository</returns>
+        public override BaseRepository CreateRepository(SqlConnection conn)
+        {
+            return new <#= entity.Name #>Repository(conn);
+        }
+    }
+<#
+        var entityKeyFields = entity.GetKeyFields();
+        var entityInsertFields = entity.GetInsertFields();
+#>
+
+    public partial class <#= entity.Name #>Repository : BaseRepository
     {
         public <#= entity.Name #>Repository(SqlConnection conn)
             : base(conn)
@@ -81,159 +103,271 @@ foreach (var entity in model.Entities)
         }
 
         /// <summary>
-        /// Insert or update <#= entity.Name #>
+        /// Insert or update entity
         /// </summary>
-        /// <param name="entity"><#= entity.Name #></param>
-        public override void InsertOrUpdate(<#= entity.Name #> entity)
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not InsertOrUpdate for nested objects (optional)
+        /// </param>
+        public override void InsertOrUpdate(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
         {
-            using (var tr = Connection.BeginTransaction())
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is <#= entity.Name #>))
+                throw new ModelException(
+                    "<#= entity.Name #>Repository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (<#= entity.Name #>)entity;
+
+<#
+        var fieldsToValidate =
+            entityInsertFields
+                .Where(x => x.IsNullable != true)
+                .ToList();
+        if (fieldsToValidate.Count > 0)
+        {
+#>
+            #region Validate fields
+<#
+            foreach (var field in fieldsToValidate)
+            {
+#>
+            if (typedEntity.<#= field.FieldName #> == null)
+                throw new ArgumentNullException("entity.<#= field.FieldName #>");
+<#
+            }
+#>
+            #endregion
+
+<#
+        }
+#>
+            Delete(entity, tr, skipNestedObjects);
+
             using (var cmd = Connection.CreateCommand())
             {
-                try
-                {
-<#
-            var entityKeyFields = entity.Fields.Where(x => x.IsKey == true && string.IsNullOrEmpty(x.Relation));
-            var entityInsertFields = entity.Fields.Where(x => string.IsNullOrEmpty(x.Relation));
-#>
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[<#= entity.TableName #>] WHERE
-                            (<#= string.Join(", ", entityKeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>);
-                        INSERT INTO [dbo].[<#= entity.TableName #>] (<#= string.Join(", ", entityInsertFields.Select(x => "[" + x.ColumnName + "]")) #>) VALUES
-                            (<#= string.Join(", ", entityInsertFields.Select(x => "@" + x.FieldName)) #>);
-                        ";
+                cmd.Transaction = tr;
 
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+
+                #region Insert <#= entity.Name #>
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[<#= entity.TableName #>] (<#= string.Join(", ", entityInsertFields.Select(x => "[" + x.FieldName + "]")) #>) VALUES
+                        (<#= string.Join(", ", entityInsertFields.Select(x => "@" + x.FieldName)) #>);
+                    ";
 <#
-            foreach (var field in entityInsertFields)
+        foreach (var field in entityInsertFields)
+        {
+            if (field.IsNullable == true)
             {
 #>
-                    cmd.Parameters.AddWithValue("@<#= field.FieldName #>", entity.<#= field.FieldName #>);
+                cmd.Parameters.AddWithValue("@<#= field.FieldName #>", typedEntity.<#= field.FieldName #> ?? (object)DBNull.Value);
 <#
             }
-#>
-                    cmd.ExecuteNonQuery();
-<#
-            foreach (var relationField in entity.Fields.Where(x => !string.IsNullOrEmpty(x.Relation)))
-            {
-                var chain = model.GetRelationEntityChain(relationField.Relation, entity);
-                var parentKeyFields = chain.Parent.Fields.Where(x => x.IsKey == true && string.IsNullOrEmpty(x.Relation));
-                var parentInsertFields = chain.Parent.Fields.Where(x => string.IsNullOrEmpty(x.Relation));
-                var end2KeyFields = chain.End2.Fields.Where(x => x.IsKey == true && string.IsNullOrEmpty(x.Relation));
-                var end2InsertFields = chain.End2.Fields.Where(x => string.IsNullOrEmpty(x.Relation));
-
-#>
-
-                    #region <#= relationField.FieldName #>
-<#
-                if (lists.ContainsKey(relationField.FieldName))
-                {
-#>
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[<#= chain.Parent.TableName #>] WHERE
-                            (<#= string.Join(", ", chain.Relation.Fields.Select(x => "[" + x.ChildColumnName + "] = @" + x.ChildColumnName)) #>);
-                        ";
-<#
-            foreach (var field in parentKeyFields.Where(x => chain.Relation.Fields.Any(y => y.ChildColumnName.Equals(x.ColumnName))))
+            else
             {
 #>
-                    cmd.Parameters.AddWithValue("@<#= field.FieldName #>", entity.<#= field.FieldName #>);
+                cmd.Parameters.AddWithValue("@<#= field.FieldName #>", typedEntity.<#= field.FieldName #>);
 <#
             }
+        }
+#>
+                cmd.ExecuteNonQuery();
+                #endregion
 
-            if (chain.End2 != chain.Parent || chain.End1 != chain.Parent)
+<#
+        foreach (var relationField in entity.Fields.Where(x => !string.IsNullOrEmpty(x.Relation)))
+        {
+            var relationChain = model.GetRelationEntityChain(
+                relationField.Relation,
+                entity
+                );
+            switch (relationChain.RelationType)
             {
+                case ModelRelationEntityChainType.ManyToMany:
+                    var relation = relationChain.Parent.Relations.FirstOrDefault(
+                        x => x.EntityName.Equals(entity.Name, StringComparison.InvariantCultureIgnoreCase));
+                    var relationFields = new Dictionary<string, ModelField>();
+                    foreach (var field in relation.Fields)
+                        relationFields.Add(field.ParentColumnName,
+                            entity.Fields.FirstOrDefault(
+                                x => x.ColumnName != null &&
+                                x.ColumnName.Equals(field.ChildColumnName, StringComparison.InvariantCultureIgnoreCase))
+                                );
+                    foreach (var field in relationChain.Relation.Fields)
+                        relationFields.Add(field.ParentColumnName,
+                            relationChain.End2.Fields.FirstOrDefault(
+                                x => x.ColumnName != null &&
+                                x.ColumnName.Equals(field.ChildColumnName, StringComparison.InvariantCultureIgnoreCase))
+                                );
 #>
-                    cmd.ExecuteNonQuery();
-
-                    if (entity.<#= relationField.FieldName #> != null && entity.<#= relationField.FieldName #>.Count > 0)
-                        foreach (var item in entity.<#= relationField.FieldName #>)
-                        {
-                            cmd.CommandText = @"
-                                DELETE FROM [dbo].[<#= chain.End2.TableName #>] WHERE
-                                    (<#= string.Join(", ", end2KeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>);
-                                INSERT INTO [dbo].[<#= chain.End2.TableName #>] (<#= string.Join(", ", end2InsertFields.Select(x => "[" + x.ColumnName + "]")) #>) VALUES
-                                    (<#= string.Join(", ", end2InsertFields.Select(x => "@" + x.FieldName)) #>);
-                                ";
-
-<#
-                foreach (var field in end2InsertFields)
+                #region Insert <#= relationChain.Parent.Name #>
+                foreach (var item in typedEntity.<#= relationField.FieldName #>)
                 {
-#>
-                            cmd.Parameters.AddWithValue("@<#= field.FieldName #>", item.<#= field.FieldName #>);
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[<#= relationChain.Parent.TableName #>] (<#= string.Join(", ", relationFields.Select(x => "[" + x.Key + "]")) #>) VALUES
+                            (<#= string.Join(", ", relationFields.Select(x => "@" + x.Key)) #>);
+                        ";
 <#
-                }
+                    foreach (var field in relationFields)
+                    {
+                        var path = "typedEntity";
+                        if (relationChain.End2.Fields.Contains(field.Value))
+                            path = "item";
 #>
-                            cmd.ExecuteNonQuery();
+                    cmd.Parameters.AddWithValue("@<#= field.Key #>", <#= path #>.<#= field.Value.FieldName #>);
 <#
-                if (chain.End2 != chain.Parent && chain.End1 != chain.Parent)
-                {
-#>
-
-                            cmd.CommandText = @"
-                                INSERT INTO [dbo].[<#= chain.Parent.TableName #>] (<#= string.Join(", ", parentInsertFields.Select(x => "[" + x.FieldName + "]")) #>) VALUES
-                                    (<#= string.Join(", ", parentInsertFields.Select(x => "@" + x.FieldName)) #>);
-                                ";
-
-<#
-                    foreach (var relation in chain.Parent.Relations)
-                        foreach (var field in relation.Fields)
-                        {
-                            var entityField = chain.End1.Fields.FirstOrDefault(x => x.Relation == chain.Parent.Name + "." + relation.Name);
-                            if (entityField != null)
-                            {
-                                var relationEntityField = chain.End1.Fields.First(x => x.ColumnName == field.ChildColumnName);
-#>
-                            cmd.Parameters.AddWithValue("@<#= field.ParentColumnName #>", item.<#= relationEntityField.FieldName #>);
-<#
-                            }
-                            else
-                            {
-                                entityField = chain.End2.Fields.FirstOrDefault(x => x.Relation == chain.Parent.Name + "." + relation.Name);
-                                var relationEntityField = chain.End1.Fields.First(x => x.ColumnName == field.ChildColumnName);
-#>
-                            cmd.Parameters.AddWithValue("@<#= field.ParentColumnName #>", entity.<#= relationEntityField.FieldName #>);
-<#
-                            }
-                        }
                     }
 #>
-                            cmd.ExecuteNonQuery();
-                        }
-<#
-            }
-                }
-                else
-                {
-#>
-                    cmd.CommandText = @"
-                        DELETE FROM [dbo].[<#= chain.End2.TableName #>] WHERE
-                            (<#= string.Join(", ", end2KeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>);
-                        INSERT INTO [dbo].[<#= chain.End2.TableName #>] (<#= string.Join(", ", end2InsertFields.Select(x => "[" + x.ColumnName + "]")) #>) VALUES
-                            (<#= string.Join(", ", end2InsertFields.Select(x => "@" + x.FieldName)) #>);
-                        ";
-<#
-                foreach (var field in end2InsertFields)
-                {
-#>
-                    cmd.Parameters.AddWithValue("@<#= field.FieldName #>", entity.<#= relationField.FieldName #>.<#= field.FieldName #>);
-<#
-                }
-#>
                     cmd.ExecuteNonQuery();
-<#
                 }
+                #endregion
+
+<#
+                    break;
+            }
+        }
 #>
-                    #endregion
+            }
+        }
+
+        /// <summary>
+        /// Delete entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        /// <param name="tr">Transaction</param>
+        /// <param name="skipNestedObjects">
+        ///     Flag specifying whether to skip or not Delete for nested objects (optional)
+        /// </param>
+        public override void Delete(BaseEntity entity, SqlTransaction tr, bool skipNestedObjects = false)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is <#= entity.Name #>))
+                throw new ModelException(
+                    "<#= entity.Name #>Repository " +
+                    "cannot perform operations on \"" + entity.GetType().Name + "\""
+                    );
+            
+            var typedEntity = (<#= entity.Name #>)entity;
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.Transaction = tr;
+
+<#
+        var nestedObjectsToSkip = new List<ModelField>();
+
+        foreach (var relationField in entity.Fields.Where(x => !string.IsNullOrEmpty(x.Relation)))
+        {
+            var relationChain = model.GetRelationEntityChain(
+                relationField.Relation,
+                entity
+                );
+            switch (relationChain.RelationType)
+            {
+                case ModelRelationEntityChainType.ManyToMany:
+                case ModelRelationEntityChainType.OneToMany:
+                    var relation = relationChain.Parent.Relations.FirstOrDefault(
+                        x => x.EntityName.Equals(entity.Name, StringComparison.InvariantCultureIgnoreCase));
+                    var relationFields = new Dictionary<string, ModelField>();
+                    foreach (var field in relation.Fields)
+                        relationFields.Add(field.ParentColumnName,
+                            entity.Fields.FirstOrDefault(
+                                x => x.ColumnName != null &&
+                                x.ColumnName.Equals(field.ChildColumnName, StringComparison.InvariantCultureIgnoreCase))
+                                );
+                    if (relationChain.RelationType == ModelRelationEntityChainType.ManyToMany)
+                        nestedObjectsToSkip.Add(relationField);
+                    if (relationChain.RelationType == ModelRelationEntityChainType.OneToMany)
+                        if (relationFields.All(x => x.Value.IsNullable == true) && 
+                            relationField.CascadeDelete != true)
+                        {
+                            nestedObjectsToSkip.Add(relationField);
+                            continue;
+                        }
+#>
+                #region Delete <#= relationChain.Parent.Name #>
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[<#= relationChain.Parent.TableName #>] WHERE
+                        (<#= string.Join("AND ", relationFields.Select(x => "[" + x.Key + "] = @" + x.Value.FieldName)) #>);
+                    ";
+<#
+                    foreach (var field in relationFields)
+                    {
+#>
+                cmd.Parameters.AddWithValue("@<#= field.Key #>", typedEntity.<#= field.Value.FieldName #>);
+<#
+                    }
+#>
+                cmd.ExecuteNonQuery();
+                #endregion
+
+<#
+                    break;
+                case ModelRelationEntityChainType.ManyToOne:
+                    nestedObjectsToSkip.Add(relationField);
+                    break;
+            }
+        }
+
+        if (nestedObjectsToSkip.Count > 0)
+        {
+            foreach (var field in nestedObjectsToSkip)
+            {
+#>
+                var temp<#= field.FieldName #> = typedEntity.<#= field.FieldName #>;
+                typedEntity.<#= field.FieldName #> = null;
 <#
             }
 #>
 
-                    tr.Commit();
-                }
-                catch (Exception)
-                {
-                    tr.Rollback();
-                    throw;
-                }
+<#
+        }
+#>
+                if (!skipNestedObjects)
+                    foreach (var nestedEntity in typedEntity.Flatten().Reverse())
+                        if (nestedEntity != typedEntity)
+                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+
+<#
+        if (nestedObjectsToSkip.Count > 0)
+        {
+            foreach (var field in nestedObjectsToSkip)
+            {
+#>
+                typedEntity.<#= field.FieldName #> = temp<#= field.FieldName #>;
+<#
+            }
+#>
+
+<#
+        }
+#>
+                #region Delete <#= entity.Name #>
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    DELETE FROM [dbo].[<#= entity.TableName #>] WHERE
+                        (<#= string.Join(" AND ", entityKeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>);
+                    ";
+<#
+        foreach (var field in entityKeyFields)
+        {
+#>
+                cmd.Parameters.AddWithValue("@<#= field.FieldName #>", typedEntity.<#= field.FieldName #>);
+<#
+        }
+#>
+                cmd.ExecuteNonQuery();
+                #endregion
             }
         }
     }

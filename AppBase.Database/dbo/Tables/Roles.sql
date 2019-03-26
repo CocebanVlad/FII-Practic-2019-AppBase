@@ -1,5 +1,5 @@
 ﻿CREATE TABLE [dbo].[Roles] (
-    [Name] NVARCHAR (50) NOT NULL,
-    CONSTRAINT [PK_Roles] PRIMARY KEY CLUSTERED ([Name] ASC)
+    [RoleName] NVARCHAR (50) NOT NULL,
+    CONSTRAINT [PK_Roles] PRIMARY KEY CLUSTERED ([RoleName] ASC)
 );
 

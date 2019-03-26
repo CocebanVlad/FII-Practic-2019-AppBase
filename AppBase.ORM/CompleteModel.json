@@ -9,19 +9,11 @@
           "relation": "UserInRole.UserInRoles_Roles"
         },
         {
-          "fieldName": "Id",
-          "columnName": "Id",
-          "columnType": "int",
-          "isNullable": false,
-          "isKey": true,
-          "columnSize": 4
-        },
-        {
           "fieldName": "UserName",
           "columnName": "UserName",
           "columnType": "nvarchar",
           "isNullable": false,
-          "isKey": false,
+          "isKey": true,
           "columnSize": 500
         },
         {
@@ -67,20 +59,20 @@
           "relation": "UserInRole.UserInRoles_Roles"
         },
         {
-          "fieldName": "UserId",
-          "columnName": "UserId",
-          "columnType": "int",
+          "fieldName": "UserName",
+          "columnName": "UserName",
+          "columnType": "nvarchar",
           "isNullable": false,
           "isKey": true,
-          "columnSize": 4
+          "columnSize": 500
         },
         {
-          "fieldName": "RoleId",
-          "columnName": "RoleId",
-          "columnType": "int",
+          "fieldName": "RoleName",
+          "columnName": "RoleName",
+          "columnType": "nvarchar",
           "isNullable": false,
           "isKey": true,
-          "columnSize": 4
+          "columnSize": 100
         }
       ],
       "relations": [
@@ -89,8 +81,8 @@
           "entityName": "User",
           "fields": [
             {
-              "parentColumnName": "UserId",
-              "childColumnName": "Id"
+              "parentColumnName": "UserName",
+              "childColumnName": "UserName"
             }
           ]
         },
@@ -99,8 +91,8 @@
           "entityName": "Role",
           "fields": [
             {
-              "parentColumnName": "RoleId",
-              "childColumnName": "Id"
+              "parentColumnName": "RoleName",
+              "childColumnName": "RoleName"
             }
           ]
         }
@@ -119,18 +111,11 @@
           "relation": "Right.Rights_Roles"
         },
         {
-          "fieldName": "Id",
-          "columnName": "Id",
-          "columnType": "int",
-          "isNullable": false,
-          "isKey": true,
-          "columnSize": 4
-        },
-        {
-          "fieldName": "Name",
-          "columnName": "Name",
+          "fieldName": "RoleName",
+          "columnName": "RoleName",
           "columnType": "nvarchar",
           "isNullable": false,
+          "isKey": true,
           "columnSize": 100
         }
       ]
@@ -148,20 +133,20 @@
           "relation": "Right.Rights_Roles"
         },
         {
-          "fieldName": "RoleId",
-          "columnName": "RoleId",
-          "columnType": "int",
+          "fieldName": "RoleName",
+          "columnName": "RoleName",
+          "columnType": "nvarchar",
           "isNullable": false,
           "isKey": true,
-          "columnSize": 4
+          "columnSize": 100
         },
         {
-          "fieldName": "FunctionId",
-          "columnName": "FunctionId",
-          "columnType": "int",
+          "fieldName": "FunctionName",
+          "columnName": "FunctionName",
+          "columnType": "nvarchar",
           "isNullable": false,
           "isKey": true,
-          "columnSize": 4
+          "columnSize": 240
         },
         {
           "fieldName": "IsEnabled",
@@ -177,8 +162,8 @@
           "entityName": "Role",
           "fields": [
             {
-              "parentColumnName": "RoleId",
-              "childColumnName": "Id"
+              "parentColumnName": "RoleName",
+              "childColumnName": "RoleName"
             }
           ]
         },
@@ -187,8 +172,8 @@
           "entityName": "Function",
           "fields": [
             {
-              "parentColumnName": "FunctionId",
-              "childColumnName": "Id"
+              "parentColumnName": "FunctionName",
+              "childColumnName": "FunctionName"
             }
           ]
         }
@@ -228,6 +213,10 @@
           "relation": "TabRow.TabRows_Tabs"
         },
         {
+          "fieldName": "Detail",
+          "relation": "TabRow.TabRows_TabRowDetails"
+        },
+        {
           "fieldName": "CodTab",
           "columnName": "CodTab",
           "columnType": "nvarchar",
@@ -261,6 +250,60 @@
               "childColumnName": "Cod"
             }
           ]
+        },
+        {
+          "name": "TabRows_TabRowDetails",
+          "entityName": "TabRowDetail",
+          "fields": [
+            {
+              "parentColumnName": "CodTab",
+              "childColumnName": "CodTab"
+            },
+            {
+              "parentColumnName": "Cod",
+              "childColumnName": "Cod"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tableName": "TabRowDetails",
+      "name": "TabRowDetail",
+      "fields": [
+        {
+          "fieldName": "TabRow",
+          "relation": "TabRow.TabRows_TabRowDetails"
+        },
+        {
+          "fieldName": "CodTab",
+          "columnName": "CodTab",
+          "columnType": "nvarchar",
+          "isNullable": false,
+          "isKey": true,
+          "columnSize": 240
+        },
+        {
+          "fieldName": "Cod",
+          "columnName": "Cod",
+          "columnType": "nvarchar",
+          "isNullable": false,
+          "isKey": true,
+          "columnSize": 240
+        },
+        {
+          "fieldName": "Pos",
+          "columnName": "Pos",
+          "columnType": "int",
+          "isNullable": true,
+          "columnSize": 4
+        },
+        {
+          "fieldName": "ExtraInfo",
+          "columnName": "ExtraInfo",
+          "columnType": "nvarchar",
+          "isNullable": true,
+          "columnSize": -1
         }
       ]
     },
@@ -269,18 +312,11 @@
       "name": "Function",
       "fields": [
         {
-          "fieldName": "Id",
-          "columnName": "Id",
-          "columnType": "int",
-          "isNullable": false,
-          "isKey": true,
-          "columnSize": 4
-        },
-        {
-          "fieldName": "Name",
-          "columnName": "Name",
+          "fieldName": "FunctionName",
+          "columnName": "FunctionName",
           "columnType": "nvarchar",
           "isNullable": false,
+          "isKey": true,
           "columnSize": 240
         }
       ]

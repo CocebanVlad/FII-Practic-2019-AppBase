@@ -63,15 +63,15 @@
     <Folder Include="dbo\Tables\" />
   </ItemGroup>
   <ItemGroup>
-    <Build Include="dbo\Tables\Users.sql" />
-    <Build Include="dbo\Tables\Roles.sql" />
-    <Build Include="dbo\Tables\UserInRoles.sql" />
-    <Build Include="dbo\Tables\Rights.sql" />
-    <Build Include="dbo\Tables\Functions.sql" />
-    <Build Include="dbo\Tables\Tabs.sql" />
-    <Build Include="dbo\Tables\TabRows.sql" />
+    <RefactorLog Include="AppBase.Database.refactorlog" />
   </ItemGroup>
   <ItemGroup>
-    <RefactorLog Include="AppBase.Database.refactorlog" />
+    <Build Include="dbo\Tables\Functions.sql" />
+    <Build Include="dbo\Tables\Rights.sql" />
+    <Build Include="dbo\Tables\Roles.sql" />
+    <Build Include="dbo\Tables\TabRows.sql" />
+    <Build Include="dbo\Tables\Tabs.sql" />
+    <Build Include="dbo\Tables\UserInRoles.sql" />
+    <Build Include="dbo\Tables\Users.sql" />
   </ItemGroup>
 </Project>
