@@ -12,36 +12,43 @@ namespace AppBase.ORM.Tests
     {
         static void Main(string[] args)
         {
-            var user = new User();
-            user.UserName = "coceban.vlad";
-            user.Email = "coceban.vlad@hotmail.com";
-            var role = new Role();
-            role.RoleName = "Admin";
-
-            for (var i = 0; i < 10; i++)
-            {
-                var function = new Function();
-                function.FunctionName = "Function" + i;
-
-                var right = new Right();
-                right.Function = function;
-                right.FunctionName = function.FunctionName;
-                right.IsEnabled = true;
-                right.Role = role;
-                right.RoleName = role.RoleName;
-                role.Rights.Add(right);
-            }
-
-            user.Roles.Add(role);
             using (var conn = new SqlConnection(CommonHelpers.GetConnectionString()))
             {
                 conn.Open();
-                var repo = (UserRepository)user.CreateRepository(conn);
-                repo.Delete(user);
-                repo.InsertOrUpdate(user);
-            }
 
-            Console.ReadKey();
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[UserInRoles] WHERE 1 = 1;
+                        DELETE FROM [dbo].[Rights] WHERE 1 = 1;
+                        DELETE FROM [dbo].[Roles] WHERE 1 = 1;
+                        DELETE FROM [dbo].[Users] WHERE 1 = 1;
+                        DELETE FROM [dbo].[Functions] WHERE 1 = 1;
+                        ";
+                    cmd.ExecuteNonQuery();
+                    Console.WriteLine("Everything deleted");
+                }
+
+                var roleNames = new string[] { "Admin", "User" };
+                var roles = new List<Role>();
+                foreach (var roleName in roleNames)
+                {
+                    var role = new Role();
+                    role.RoleName = roleName;
+                    for (var i = 0; i < 10; i++)
+                    {
+                        var function = new Function();
+                        function.FunctionName = roleName + "Function" + (i + 1);
+                        var right = new Right();
+                        right.Function = function;
+                        role.Rights.Add(right);
+                    }
+                    Console.WriteLine("Creating role \"" + roleName + "\"");
+                    var repo = role.CreateRepository(conn);
+                    repo.InsertOrUpdate(role);
+                    roles.Add(role);
+                }
+            }
         }
     }
 }

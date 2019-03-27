@@ -11,6 +11,7 @@ namespace AppBase.ORM.Entities
 {
     using System;
     using System.Collections.Generic;
+    using System.Collections.Specialized;
     using System.Data;
     using System.Data.SqlClient;
     using System.Diagnostics;
@@ -150,25 +151,28 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
-
-                #region Insert User
-                cmd.CommandText = @"
-                    INSERT INTO [dbo].[Users] ([UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
-                        (@UserName, @Email, @FirstName, @LastName, @BirthDate);
-                    ";
-                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
-                cmd.Parameters.AddWithValue("@Email", typedEntity.Email);
-                cmd.Parameters.AddWithValue("@FirstName", typedEntity.FirstName ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@LastName", typedEntity.LastName ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@BirthDate", typedEntity.BirthDate ?? (object)DBNull.Value);
-                Debug.WriteLine("UserRepository.InsertOrUpdate: INSERT INTO [dbo].[Users]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "UserName=" + typedEntity.UserName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                        nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+                }
+                else
+                {
+                    #region Insert User
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Users] ([UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
+                            (@UserName, @Email, @FirstName, @LastName, @BirthDate);
+                        ";
+                    cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
+                    cmd.Parameters.AddWithValue("@Email", typedEntity.Email);
+                    cmd.Parameters.AddWithValue("@FirstName", typedEntity.FirstName ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@LastName", typedEntity.LastName ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@BirthDate", typedEntity.BirthDate ?? (object)DBNull.Value);
+                    Debug.WriteLine("UserRepository.InsertOrUpdate: INSERT INTO [dbo].[Users]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "UserName=" + typedEntity.UserName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
 
                 #region Insert UserInRole
                 foreach (var item in typedEntity.Roles)
@@ -227,28 +231,32 @@ namespace AppBase.ORM.Entities
                 cmd.ExecuteNonQuery();
                 #endregion
 
-                var tempRoles = typedEntity.Roles;
-                typedEntity.Roles = null;
-
                 if (!skipNestedObjects)
+                {
+                    var tempRoles = typedEntity.Roles;
+                    typedEntity.Roles = null;
+
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+                        nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
-                typedEntity.Roles = tempRoles;
+                    typedEntity.Roles = tempRoles;
 
-                #region Delete User
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-                    DELETE FROM [dbo].[Users] WHERE
-                        ([UserName] = @UserName);
-                    ";
-                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
-                Debug.WriteLine("UserRepository.Delete: DELETE FROM [dbo].[Users]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "UserName=" + typedEntity.UserName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                }
+                else
+                {
+                    #region Delete User
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Users] WHERE
+                            ([UserName] = @UserName);
+                        ";
+                    cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
+                    Debug.WriteLine("UserRepository.Delete: DELETE FROM [dbo].[Users]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "UserName=" + typedEntity.UserName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
             }
         }
     }
@@ -347,13 +355,6 @@ namespace AppBase.ORM.Entities
 
             var typedEntity = (UserInRole)entity;
 
-            #region Validate fields
-            if (typedEntity.UserName == null)
-                throw new ArgumentNullException("entity.UserName");
-            if (typedEntity.RoleName == null)
-                throw new ArgumentNullException("entity.RoleName");
-            #endregion
-
             Delete(entity, tr, skipNestedObjects);
 
             using (var cmd = Connection.CreateCommand())
@@ -361,22 +362,25 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
-
-                #region Insert UserInRole
-                cmd.CommandText = @"
-                    INSERT INTO [dbo].[UserInRoles] ([UserName], [RoleName]) VALUES
-                        (@UserName, @RoleName);
-                    ";
-                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
-                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
-                Debug.WriteLine("UserInRoleRepository.InsertOrUpdate: INSERT INTO [dbo].[UserInRoles]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "UserName=" + typedEntity.UserName + ";" + "RoleName=" + typedEntity.RoleName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                        nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+                }
+                else
+                {
+                    #region Insert UserInRole
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[UserInRoles] ([UserName], [RoleName]) VALUES
+                            (@UserName, @RoleName);
+                        ";
+                    cmd.Parameters.AddWithValue("@UserName", typedEntity?.User?.UserName ?? typedEntity.UserName);
+                    cmd.Parameters.AddWithValue("@RoleName", typedEntity?.Role?.RoleName ?? typedEntity.RoleName);
+                    Debug.WriteLine("UserInRoleRepository.InsertOrUpdate: INSERT INTO [dbo].[UserInRoles]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "UserName=" + typedEntity.UserName + ";" + "RoleName=" + typedEntity.RoleName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
 
             }
         }
@@ -405,32 +409,36 @@ namespace AppBase.ORM.Entities
             {
                 cmd.Transaction = tr;
 
-                var tempUser = typedEntity.User;
-                typedEntity.User = null;
-                var tempRole = typedEntity.Role;
-                typedEntity.Role = null;
-
                 if (!skipNestedObjects)
+                {
+                    var tempUser = typedEntity.User;
+                    typedEntity.User = null;
+                    var tempRole = typedEntity.Role;
+                    typedEntity.Role = null;
+
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+                        nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
-                typedEntity.User = tempUser;
-                typedEntity.Role = tempRole;
+                    typedEntity.User = tempUser;
+                    typedEntity.Role = tempRole;
 
-                #region Delete UserInRole
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-                    DELETE FROM [dbo].[UserInRoles] WHERE
-                        ([UserName] = @UserName AND [RoleName] = @RoleName);
-                    ";
-                cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
-                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
-                Debug.WriteLine("UserInRoleRepository.Delete: DELETE FROM [dbo].[UserInRoles]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "UserName=" + typedEntity.UserName + "; " + "RoleName=" + typedEntity.RoleName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                }
+                else
+                {
+                    #region Delete UserInRole
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[UserInRoles] WHERE
+                            ([UserName] = @UserName AND [RoleName] = @RoleName);
+                        ";
+                    cmd.Parameters.AddWithValue("@UserName", typedEntity?.User?.UserName ?? typedEntity.UserName);
+                    cmd.Parameters.AddWithValue("@RoleName", typedEntity?.Role?.RoleName ?? typedEntity.RoleName);
+                    Debug.WriteLine("UserInRoleRepository.Delete: DELETE FROM [dbo].[UserInRoles]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "UserName=" + typedEntity.UserName + "; " + "RoleName=" + typedEntity.RoleName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
             }
         }
     }
@@ -479,6 +487,11 @@ namespace AppBase.ORM.Entities
         {
             _users = new BaseEntityCollection<User>();
             _rights = new BaseEntityCollection<Right>();
+            _rights.CollectionEntityFlatten +=
+                (Right entity) =>
+                {
+                    entity.RoleName = RoleName;
+                };
         }
 
         /// <summary>
@@ -531,21 +544,24 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
-
-                #region Insert Role
-                cmd.CommandText = @"
-                    INSERT INTO [dbo].[Roles] ([RoleName]) VALUES
-                        (@RoleName);
-                    ";
-                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
-                Debug.WriteLine("RoleRepository.InsertOrUpdate: INSERT INTO [dbo].[Roles]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "RoleName=" + typedEntity.RoleName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                        nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+                }
+                else
+                {
+                    #region Insert Role
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Roles] ([RoleName]) VALUES
+                            (@RoleName);
+                        ";
+                    cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                    Debug.WriteLine("RoleRepository.InsertOrUpdate: INSERT INTO [dbo].[Roles]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "RoleName=" + typedEntity.RoleName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
 
                 #region Insert UserInRole
                 foreach (var item in typedEntity.Users)
@@ -617,28 +633,32 @@ namespace AppBase.ORM.Entities
                 cmd.ExecuteNonQuery();
                 #endregion
 
-                var tempUsers = typedEntity.Users;
-                typedEntity.Users = null;
-
                 if (!skipNestedObjects)
+                {
+                    var tempUsers = typedEntity.Users;
+                    typedEntity.Users = null;
+
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+                        nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
-                typedEntity.Users = tempUsers;
+                    typedEntity.Users = tempUsers;
 
-                #region Delete Role
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-                    DELETE FROM [dbo].[Roles] WHERE
-                        ([RoleName] = @RoleName);
-                    ";
-                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
-                Debug.WriteLine("RoleRepository.Delete: DELETE FROM [dbo].[Roles]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "RoleName=" + typedEntity.RoleName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                }
+                else
+                {
+                    #region Delete Role
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Roles] WHERE
+                            ([RoleName] = @RoleName);
+                        ";
+                    cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
+                    Debug.WriteLine("RoleRepository.Delete: DELETE FROM [dbo].[Roles]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "RoleName=" + typedEntity.RoleName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
             }
         }
     }
@@ -749,13 +769,6 @@ namespace AppBase.ORM.Entities
 
             var typedEntity = (Right)entity;
 
-            #region Validate fields
-            if (typedEntity.RoleName == null)
-                throw new ArgumentNullException("entity.RoleName");
-            if (typedEntity.FunctionName == null)
-                throw new ArgumentNullException("entity.FunctionName");
-            #endregion
-
             Delete(entity, tr, skipNestedObjects);
 
             using (var cmd = Connection.CreateCommand())
@@ -763,23 +776,26 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
-
-                #region Insert Right
-                cmd.CommandText = @"
-                    INSERT INTO [dbo].[Rights] ([RoleName], [FunctionName], [IsEnabled]) VALUES
-                        (@RoleName, @FunctionName, @IsEnabled);
-                    ";
-                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
-                cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
-                cmd.Parameters.AddWithValue("@IsEnabled", typedEntity.IsEnabled);
-                Debug.WriteLine("RightRepository.InsertOrUpdate: INSERT INTO [dbo].[Rights]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "RoleName=" + typedEntity.RoleName + ";" + "FunctionName=" + typedEntity.FunctionName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                        nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+                }
+                else
+                {
+                    #region Insert Right
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Rights] ([RoleName], [FunctionName], [IsEnabled]) VALUES
+                            (@RoleName, @FunctionName, @IsEnabled);
+                        ";
+                    cmd.Parameters.AddWithValue("@RoleName", typedEntity?.Role?.RoleName ?? typedEntity.RoleName);
+                    cmd.Parameters.AddWithValue("@FunctionName", typedEntity?.Function?.FunctionName ?? typedEntity.FunctionName);
+                    cmd.Parameters.AddWithValue("@IsEnabled", typedEntity.IsEnabled);
+                    Debug.WriteLine("RightRepository.InsertOrUpdate: INSERT INTO [dbo].[Rights]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "RoleName=" + typedEntity.RoleName + ";" + "FunctionName=" + typedEntity.FunctionName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
 
             }
         }
@@ -808,32 +824,36 @@ namespace AppBase.ORM.Entities
             {
                 cmd.Transaction = tr;
 
-                var tempFunction = typedEntity.Function;
-                typedEntity.Function = null;
-                var tempRole = typedEntity.Role;
-                typedEntity.Role = null;
-
                 if (!skipNestedObjects)
+                {
+                    var tempFunction = typedEntity.Function;
+                    typedEntity.Function = null;
+                    var tempRole = typedEntity.Role;
+                    typedEntity.Role = null;
+
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+                        nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
-                typedEntity.Function = tempFunction;
-                typedEntity.Role = tempRole;
+                    typedEntity.Function = tempFunction;
+                    typedEntity.Role = tempRole;
 
-                #region Delete Right
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-                    DELETE FROM [dbo].[Rights] WHERE
-                        ([RoleName] = @RoleName AND [FunctionName] = @FunctionName);
-                    ";
-                cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
-                cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
-                Debug.WriteLine("RightRepository.Delete: DELETE FROM [dbo].[Rights]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "RoleName=" + typedEntity.RoleName + "; " + "FunctionName=" + typedEntity.FunctionName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                }
+                else
+                {
+                    #region Delete Right
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Rights] WHERE
+                            ([RoleName] = @RoleName AND [FunctionName] = @FunctionName);
+                        ";
+                    cmd.Parameters.AddWithValue("@RoleName", typedEntity?.Role?.RoleName ?? typedEntity.RoleName);
+                    cmd.Parameters.AddWithValue("@FunctionName", typedEntity?.Function?.FunctionName ?? typedEntity.FunctionName);
+                    Debug.WriteLine("RightRepository.Delete: DELETE FROM [dbo].[Rights]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "RoleName=" + typedEntity.RoleName + "; " + "FunctionName=" + typedEntity.FunctionName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
             }
         }
     }
@@ -881,6 +901,11 @@ namespace AppBase.ORM.Entities
         public Tab()
         {
             _rows = new BaseEntityCollection<TabRow>();
+            _rows.CollectionEntityFlatten +=
+                (TabRow entity) =>
+                {
+                    entity.CodTab = Cod;
+                };
         }
 
         /// <summary>
@@ -935,22 +960,25 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
-
-                #region Insert Tab
-                cmd.CommandText = @"
-                    INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
-                        (@Cod, @Description);
-                    ";
-                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
-                cmd.Parameters.AddWithValue("@Description", typedEntity.Description);
-                Debug.WriteLine("TabRepository.InsertOrUpdate: INSERT INTO [dbo].[Tabs]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "Cod=" + typedEntity.Cod);
-                cmd.ExecuteNonQuery();
-                #endregion
+                        nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+                }
+                else
+                {
+                    #region Insert Tab
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
+                            (@Cod, @Description);
+                        ";
+                    cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
+                    cmd.Parameters.AddWithValue("@Description", typedEntity.Description);
+                    Debug.WriteLine("TabRepository.InsertOrUpdate: INSERT INTO [dbo].[Tabs]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "Cod=" + typedEntity.Cod);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
 
             }
         }
@@ -993,22 +1021,26 @@ namespace AppBase.ORM.Entities
                 #endregion
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+                        nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
-                #region Delete Tab
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-                    DELETE FROM [dbo].[Tabs] WHERE
-                        ([Cod] = @Cod);
-                    ";
-                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
-                Debug.WriteLine("TabRepository.Delete: DELETE FROM [dbo].[Tabs]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "Cod=" + typedEntity.Cod);
-                cmd.ExecuteNonQuery();
-                #endregion
+                }
+                else
+                {
+                    #region Delete Tab
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Tabs] WHERE
+                            ([Cod] = @Cod);
+                        ";
+                    cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
+                    Debug.WriteLine("TabRepository.Delete: DELETE FROM [dbo].[Tabs]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "Cod=" + typedEntity.Cod);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
             }
         }
     }
@@ -1120,10 +1152,6 @@ namespace AppBase.ORM.Entities
             var typedEntity = (TabRow)entity;
 
             #region Validate fields
-            if (typedEntity.CodTab == null)
-                throw new ArgumentNullException("entity.CodTab");
-            if (typedEntity.Cod == null)
-                throw new ArgumentNullException("entity.Cod");
             if (typedEntity.Description == null)
                 throw new ArgumentNullException("entity.Description");
             #endregion
@@ -1135,23 +1163,26 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
-
-                #region Insert TabRow
-                cmd.CommandText = @"
-                    INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
-                        (@CodTab, @Cod, @Description);
-                    ";
-                cmd.Parameters.AddWithValue("@CodTab", typedEntity.CodTab);
-                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
-                cmd.Parameters.AddWithValue("@Description", typedEntity.Description);
-                Debug.WriteLine("TabRowRepository.InsertOrUpdate: INSERT INTO [dbo].[TabRows]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "CodTab=" + typedEntity.CodTab + ";" + "Cod=" + typedEntity.Cod);
-                cmd.ExecuteNonQuery();
-                #endregion
+                        nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+                }
+                else
+                {
+                    #region Insert TabRow
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
+                            (@CodTab, @Cod, @Description);
+                        ";
+                    cmd.Parameters.AddWithValue("@CodTab", typedEntity?.Detail?.CodTab ?? typedEntity.CodTab);
+                    cmd.Parameters.AddWithValue("@Cod", typedEntity?.Detail?.Cod ?? typedEntity.Cod);
+                    cmd.Parameters.AddWithValue("@Description", typedEntity.Description);
+                    Debug.WriteLine("TabRowRepository.InsertOrUpdate: INSERT INTO [dbo].[TabRows]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "CodTab=" + typedEntity.CodTab + ";" + "Cod=" + typedEntity.Cod);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
 
             }
         }
@@ -1180,29 +1211,33 @@ namespace AppBase.ORM.Entities
             {
                 cmd.Transaction = tr;
 
-                var tempTab = typedEntity.Tab;
-                typedEntity.Tab = null;
-
                 if (!skipNestedObjects)
+                {
+                    var tempTab = typedEntity.Tab;
+                    typedEntity.Tab = null;
+
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+                        nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
-                typedEntity.Tab = tempTab;
+                    typedEntity.Tab = tempTab;
 
-                #region Delete TabRow
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-                    DELETE FROM [dbo].[TabRows] WHERE
-                        ([CodTab] = @CodTab AND [Cod] = @Cod);
-                    ";
-                cmd.Parameters.AddWithValue("@CodTab", typedEntity.CodTab);
-                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
-                Debug.WriteLine("TabRowRepository.Delete: DELETE FROM [dbo].[TabRows]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "CodTab=" + typedEntity.CodTab + "; " + "Cod=" + typedEntity.Cod);
-                cmd.ExecuteNonQuery();
-                #endregion
+                }
+                else
+                {
+                    #region Delete TabRow
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[TabRows] WHERE
+                            ([CodTab] = @CodTab AND [Cod] = @Cod);
+                        ";
+                    cmd.Parameters.AddWithValue("@CodTab", typedEntity?.Detail?.CodTab ?? typedEntity.CodTab);
+                    cmd.Parameters.AddWithValue("@Cod", typedEntity?.Detail?.Cod ?? typedEntity.Cod);
+                    Debug.WriteLine("TabRowRepository.Delete: DELETE FROM [dbo].[TabRows]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "CodTab=" + typedEntity.CodTab + "; " + "Cod=" + typedEntity.Cod);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
             }
         }
     }
@@ -1313,13 +1348,6 @@ namespace AppBase.ORM.Entities
 
             var typedEntity = (TabRowDetail)entity;
 
-            #region Validate fields
-            if (typedEntity.CodTab == null)
-                throw new ArgumentNullException("entity.CodTab");
-            if (typedEntity.Cod == null)
-                throw new ArgumentNullException("entity.Cod");
-            #endregion
-
             Delete(entity, tr, skipNestedObjects);
 
             using (var cmd = Connection.CreateCommand())
@@ -1327,24 +1355,27 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
-
-                #region Insert TabRowDetail
-                cmd.CommandText = @"
-                    INSERT INTO [dbo].[TabRowDetails] ([CodTab], [Cod], [Pos], [ExtraInfo]) VALUES
-                        (@CodTab, @Cod, @Pos, @ExtraInfo);
-                    ";
-                cmd.Parameters.AddWithValue("@CodTab", typedEntity.CodTab);
-                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
-                cmd.Parameters.AddWithValue("@Pos", typedEntity.Pos ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@ExtraInfo", typedEntity.ExtraInfo ?? (object)DBNull.Value);
-                Debug.WriteLine("TabRowDetailRepository.InsertOrUpdate: INSERT INTO [dbo].[TabRowDetails]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "CodTab=" + typedEntity.CodTab + ";" + "Cod=" + typedEntity.Cod);
-                cmd.ExecuteNonQuery();
-                #endregion
+                        nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+                }
+                else
+                {
+                    #region Insert TabRowDetail
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[TabRowDetails] ([CodTab], [Cod], [Pos], [ExtraInfo]) VALUES
+                            (@CodTab, @Cod, @Pos, @ExtraInfo);
+                        ";
+                    cmd.Parameters.AddWithValue("@CodTab", typedEntity?.TabRow?.CodTab ?? typedEntity.CodTab);
+                    cmd.Parameters.AddWithValue("@Cod", typedEntity?.TabRow?.Cod ?? typedEntity.Cod);
+                    cmd.Parameters.AddWithValue("@Pos", typedEntity.Pos ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@ExtraInfo", typedEntity.ExtraInfo ?? (object)DBNull.Value);
+                    Debug.WriteLine("TabRowDetailRepository.InsertOrUpdate: INSERT INTO [dbo].[TabRowDetails]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "CodTab=" + typedEntity.CodTab + ";" + "Cod=" + typedEntity.Cod);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
 
             }
         }
@@ -1374,23 +1405,27 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+                        nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
-                #region Delete TabRowDetail
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-                    DELETE FROM [dbo].[TabRowDetails] WHERE
-                        ([CodTab] = @CodTab AND [Cod] = @Cod);
-                    ";
-                cmd.Parameters.AddWithValue("@CodTab", typedEntity.CodTab);
-                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
-                Debug.WriteLine("TabRowDetailRepository.Delete: DELETE FROM [dbo].[TabRowDetails]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "CodTab=" + typedEntity.CodTab + "; " + "Cod=" + typedEntity.Cod);
-                cmd.ExecuteNonQuery();
-                #endregion
+                }
+                else
+                {
+                    #region Delete TabRowDetail
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[TabRowDetails] WHERE
+                            ([CodTab] = @CodTab AND [Cod] = @Cod);
+                        ";
+                    cmd.Parameters.AddWithValue("@CodTab", typedEntity?.TabRow?.CodTab ?? typedEntity.CodTab);
+                    cmd.Parameters.AddWithValue("@Cod", typedEntity?.TabRow?.Cod ?? typedEntity.Cod);
+                    Debug.WriteLine("TabRowDetailRepository.Delete: DELETE FROM [dbo].[TabRowDetails]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "CodTab=" + typedEntity.CodTab + "; " + "Cod=" + typedEntity.Cod);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
             }
         }
     }
@@ -1465,21 +1500,24 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
-
-                #region Insert Function
-                cmd.CommandText = @"
-                    INSERT INTO [dbo].[Functions] ([FunctionName]) VALUES
-                        (@FunctionName);
-                    ";
-                cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
-                Debug.WriteLine("FunctionRepository.InsertOrUpdate: INSERT INTO [dbo].[Functions]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "FunctionName=" + typedEntity.FunctionName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                        nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
+                }
+                else
+                {
+                    #region Insert Function
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Functions] ([FunctionName]) VALUES
+                            (@FunctionName);
+                        ";
+                    cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
+                    Debug.WriteLine("FunctionRepository.InsertOrUpdate: INSERT INTO [dbo].[Functions]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "FunctionName=" + typedEntity.FunctionName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
 
             }
         }
@@ -1509,22 +1547,26 @@ namespace AppBase.ORM.Entities
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
+                {
                     foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
-                        if (nestedEntity != typedEntity)
-                            nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
+                        nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
-                #region Delete Function
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-                    DELETE FROM [dbo].[Functions] WHERE
-                        ([FunctionName] = @FunctionName);
-                    ";
-                cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
-                Debug.WriteLine("FunctionRepository.Delete: DELETE FROM [dbo].[Functions]; " +
-                    "SkipNestedObjects=" + skipNestedObjects);
-                Debug.WriteLine("    " + "FunctionName=" + typedEntity.FunctionName);
-                cmd.ExecuteNonQuery();
-                #endregion
+                }
+                else
+                {
+                    #region Delete Function
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+                        DELETE FROM [dbo].[Functions] WHERE
+                            ([FunctionName] = @FunctionName);
+                        ";
+                    cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
+                    Debug.WriteLine("FunctionRepository.Delete: DELETE FROM [dbo].[Functions]; " +
+                        "SkipNestedObjects=" + skipNestedObjects);
+                    Debug.WriteLine("    " + "FunctionName=" + typedEntity.FunctionName);
+                    cmd.ExecuteNonQuery();
+                    #endregion
+                }
             }
         }
     }

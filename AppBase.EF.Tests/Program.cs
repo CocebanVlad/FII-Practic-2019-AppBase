@@ -32,23 +32,18 @@ namespace AppBase.EF.Tests
                     var roles = new List<Role>();
                     foreach (var roleName in roleNames)
                     {
-                        var role = ctx.Roles
-                            .FirstOrDefault(x => x.RoleName == roleName);
-                        if (role == null)
+                        var role = new Role();
+                        role.RoleName = roleName;
+                        for (var i = 0; i < 10; i++)
                         {
-                            role = new Role();
-                            role.RoleName = roleName;
-                            for (var i = 0; i < 10; i++)
-                            {
-                                var function = new Function();
-                                function.FunctionName = roleName + "Function" + (i + 1);
-                                var right = new Right();
-                                right.Function = function;
-                                role.Rights.Add(right);
-                            }
-                            Console.WriteLine("Creating role \"" + roleName + "\"");
-                            roles.Add(ctx.Roles.Add(role));
+                            var function = new Function();
+                            function.FunctionName = roleName + "Function" + (i + 1);
+                            var right = new Right();
+                            right.Function = function;
+                            role.Rights.Add(right);
                         }
+                        Console.WriteLine("Creating role \"" + roleName + "\"");
+                        roles.Add(ctx.Roles.Add(role));
                     }
 
                     ctx.SaveChanges();
@@ -93,6 +88,8 @@ namespace AppBase.EF.Tests
                     throw;
                 }
             }
+
+            Console.ReadKey();
         }
     }
 }

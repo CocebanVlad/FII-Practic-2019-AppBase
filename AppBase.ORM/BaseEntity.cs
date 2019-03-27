@@ -1,17 +1,16 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 
 namespace AppBase.ORM
 {
-    public class BaseEntity
+    public class BaseEntity : IFlattingObject<BaseEntity>
     {
         /// <summary>
-        /// Flatten entity
+        /// Flatten object
         /// </summary>
-        /// <returns>Flatten set of all nested entities</returns>
-        internal HashSet<BaseEntity> Flatten()
+        /// <returns>A collection of object</returns>
+        public HashSet<BaseEntity> Flatten()
         {
             var bag = new HashSet<BaseEntity>();
             Flatten(ref bag);
@@ -19,32 +18,20 @@ namespace AppBase.ORM
         }
 
         /// <summary>
-        /// Flatten entity
+        /// Flatten object
         /// </summary>
-        /// <param name="bag">A reference to a HashSet where all entities will be collected</param>
-        private void Flatten(ref HashSet<BaseEntity> bag)
+        /// <param name="bag">A reference to a collection where all objects will be collected</param>
+        public void Flatten(ref HashSet<BaseEntity> bag)
         {
-            bag = bag ?? new HashSet<BaseEntity>();
             if (!bag.Add(this))
                 return;
-
             foreach (var prop in GetType().GetProperties())
-            {
-                if (prop.PropertyType.IsGenericType &&
-                    prop.PropertyType.GetGenericTypeDefinition() == typeof(BaseEntityCollection<>))
+                if (typeof(IFlattingObject<BaseEntity>).IsAssignableFrom(prop.PropertyType))
                 {
-                    var coll = prop.GetValue(this) as IList;
-                    if (coll != null)
-                        foreach (BaseEntity item in coll)
-                            item.Flatten(ref bag);
-                }
-                else if (typeof(BaseEntity).IsAssignableFrom(prop.PropertyType))
-                {
-                    var val = prop.GetValue(this) as BaseEntity;
+                    var val = prop.GetValue(this) as IFlattingObject<BaseEntity>;
                     if (val != null)
                         val.Flatten(ref bag);
                 }
-            }
         }
 
         /// <summary>
