@@ -10,11 +10,10 @@ namespace AppBase.EF.Tests
         static void Main(string[] args)
         {
             using (var ctx = new AppBaseEntities())
-            using (var tr = ctx.Database.BeginTransaction())
             {
+                #region Deleted everything
                 using (var cmd = ctx.Database.Connection.CreateCommand())
                 {
-                    cmd.Transaction = tr.UnderlyingTransaction;
                     cmd.CommandText = @"
                         DELETE FROM [dbo].[UserInRoles] WHERE 1 = 1;
                         DELETE FROM [dbo].[Rights] WHERE 1 = 1;
@@ -25,68 +24,64 @@ namespace AppBase.EF.Tests
                     cmd.ExecuteNonQuery();
                     Console.WriteLine("Everything deleted");
                 }
+                #endregion
 
-                try
+                #region Create roles
+                var roleNames = new string[] { "Admin", "User" };
+                var roles = new List<Role>();
+                foreach (var name in roleNames)
                 {
-                    var roleNames = new string[] { "Admin", "User" };
-                    var roles = new List<Role>();
-                    foreach (var roleName in roleNames)
+                    var role = new Role()
                     {
-                        var role = new Role();
-                        role.RoleName = roleName;
-                        for (var i = 0; i < 10; i++)
-                        {
-                            var function = new Function();
-                            function.FunctionName = roleName + "Function" + (i + 1);
-                            var right = new Right();
-                            right.Function = function;
-                            role.Rights.Add(right);
-                        }
-                        Console.WriteLine("Creating role \"" + roleName + "\"");
-                        roles.Add(ctx.Roles.Add(role));
-                    }
+                        RoleName = name
+                    };
 
-                    ctx.SaveChanges();
+                    #region Create functions and rights
+                    for (var i = 0; i < 10; i++)
+                        role.Rights.Add(new Right() { Function = new Function() { FunctionName = name + "Function" + (i + 1) } });
+                    #endregion
 
-                    for (var i = 0; i < 100; i++)
-                    {
-                        var user = new User();
-                        user.UserName = "User" + (i + 1);
-                        user.Email = user.UserName + "@email.com";
-                        user.FirstName = "";
-                        user.LastName = "";
-                        user.BirthDate = DateTime.Now;
-                        user.Roles.Add(roles[i % roles.Count]);
+                    Console.WriteLine("Creating role \"" + name + "\"");
 
-                        Console.WriteLine("Creating user \"" + user.UserName + "\"");
-                        ctx.Users.Add(user);
-                    }
-
-                    Console.WriteLine("Saving...");
-                    ctx.SaveChanges();
-                    tr.Commit();
-
-                    Console.WriteLine("Getting TOP 100 users");
-                    var usersQuery = (DbQuery<User>)ctx.Users
-                        .AsNoTracking()
-                        .OrderBy(user => user.UserName)
-                        .Skip(0)
-                        .Take(100);
-
-                    var users = usersQuery.ToList();
-
-                    Console.WriteLine("Generated SQL is:\n" +
-                        usersQuery.Sql + "\n\n");
-
-                    foreach (var user in usersQuery)
-                        Console.WriteLine("UserName: {0}, Email: {1}",
-                            user.UserName, user.Email);
+                    roles.Add(ctx.Roles.Add(role));
                 }
-                catch (Exception)
+                #endregion
+
+                #region Create users
+                for (var i = 0; i < 90; i++)
                 {
-                    tr.Rollback();
-                    throw;
+                    var user = new User()
+                    {
+                        UserName = "user_" + (i + 1),
+                        Email = "user_" + (i + 1) + "@email.com",
+                        FirstName = (i + 1) + " first name",
+                        LastName = (i + 1) + " last name",
+                        BirthDate = DateTime.Now
+                    };
+                    user.Roles.Add(roles[i % roles.Count]);
+
+                    Console.WriteLine("Creating user \"" + user.UserName + "\"");
+                    ctx.Users.Add(user);
                 }
+                #endregion
+
+                ctx.SaveChanges();
+
+                Console.WriteLine("Getting TOP 100 users");
+                var usersQuery = (DbQuery<User>)ctx.Users
+                    .AsNoTracking()
+                    .OrderBy(user => user.UserName)
+                    .Skip(0)
+                    .Take(100);
+
+                var users = usersQuery.ToList();
+
+                Console.WriteLine("Generated SQL is:\n" +
+                    usersQuery.Sql + "\n\n");
+
+                foreach (var user in usersQuery)
+                    Console.WriteLine("UserName: {0}, Email: {1}",
+                        user.UserName, user.Email);
             }
 
             Console.ReadKey();

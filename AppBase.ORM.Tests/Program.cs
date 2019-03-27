@@ -1,10 +1,7 @@
 ﻿using AppBase.ORM.Entities;
-using System.Linq;
 using System.Data.SqlClient;
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
-using System.Diagnostics;
 
 namespace AppBase.ORM.Tests
 {
@@ -16,6 +13,7 @@ namespace AppBase.ORM.Tests
             {
                 conn.Open();
 
+                #region Deleted everything
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = @"
@@ -28,27 +26,53 @@ namespace AppBase.ORM.Tests
                     cmd.ExecuteNonQuery();
                     Console.WriteLine("Everything deleted");
                 }
+                #endregion
 
+                #region Create roles
                 var roleNames = new string[] { "Admin", "User" };
                 var roles = new List<Role>();
-                foreach (var roleName in roleNames)
+                foreach (var name in roleNames)
                 {
-                    var role = new Role();
-                    role.RoleName = roleName;
-                    for (var i = 0; i < 10; i++)
+                    var role = new Role()
                     {
-                        var function = new Function();
-                        function.FunctionName = roleName + "Function" + (i + 1);
-                        var right = new Right();
-                        right.Function = function;
-                        role.Rights.Add(right);
-                    }
-                    Console.WriteLine("Creating role \"" + roleName + "\"");
+                        RoleName = name
+                    };
+
+                    #region Create functions and rights
+                    for (var i = 0; i < 10; i++)
+                        role.Rights.Add(new Right() { Function = new Function() { FunctionName = name + "Function" + (i + 1) } });
+                    #endregion
+
+                    Console.WriteLine("Creating role \"" + name + "\"");
+
                     var repo = role.CreateRepository(conn);
                     repo.InsertOrUpdate(role);
+
                     roles.Add(role);
                 }
+                #endregion
+
+                #region Create users
+                for (var i = 0; i < 90; i++)
+                {
+                    var user = new User()
+                    {
+                        UserName = "user_" + (i + 1),
+                        Email = "user_" + (i + 1) + "@email.com",
+                        FirstName = (i + 1) + " first name",
+                        LastName = (i + 1) + " last name",
+                        BirthDate = DateTime.Now
+                    };
+                    user.Roles.Add(roles[i % roles.Count]);
+
+                    Console.WriteLine("Creating user \"" + user.UserName + "\"");
+                    var repo = user.CreateRepository(conn);
+                    repo.InsertOrUpdate(user);
+                }
+                #endregion
             }
+
+            Console.ReadKey();
         }
     }
 }
