@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AppBase.ORM
 {
@@ -40,10 +40,10 @@ namespace AppBase.ORM
         }
 
         /// <summary>
-        /// Get fields required for an insert
+        /// Get fields
         /// </summary>
         /// <returns>A collection of fields</returns>
-        public IList<ModelField> GetInsertFields()
+        public IList<ModelField> GetFields()
         {
             return Fields.Where(x => string.IsNullOrEmpty(x.Relation)).ToList();
         }

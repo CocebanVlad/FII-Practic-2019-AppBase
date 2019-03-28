@@ -33,5 +33,20 @@ namespace AppBase.ORM
                 entity.Flatten(ref bag);
             }
         }
+
+        /// <summary>
+        /// Clone collection
+        /// </summary>
+        /// <returns>A cloned collection</returns>
+        public virtual BaseEntityCollection<T> Clone()
+        {
+            var clone = new BaseEntityCollection<T>();
+            clone.CollectionEntityFlatten = CollectionEntityFlatten;
+
+            foreach (var entity in this)
+                clone.Add((T)entity.Clone());
+
+            return clone;
+        }
     }
 }

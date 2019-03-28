@@ -107,7 +107,7 @@ namespace AppBase.ORM
         /// </summary>
         /// <param name="key">Key (a dictionary containing key column name and its value)</param>
         /// <returns>An entity</returns>
-        public virtual BaseEntity SelectOne(Dictionary<string, string> key)
+        public virtual BaseEntity SelectOne(Dictionary<string, object> key)
         {
             throw new NotImplementedException();
         }

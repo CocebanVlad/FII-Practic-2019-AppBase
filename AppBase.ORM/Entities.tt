@@ -60,6 +60,9 @@ foreach (var entity in model.Entities)
                         field.Value
                         );
     }
+
+    var entityKeyFields = entity.GetKeyFields();
+    var entityFields = entity.GetFields();
 #>
 
     #region <#= entity.Name #>
@@ -90,6 +93,7 @@ foreach (var entity in model.Entities)
         /// <summary>
         /// Get or set <#= field.FieldName #>
         /// </summary>
+        [EntityProperty]
         public <#= type #> <#= field.FieldName #>
         {
             <#= getFn #>
@@ -103,34 +107,34 @@ foreach (var entity in model.Entities)
         public <#= entity.Name #>()
         {
 <#
-        foreach (var item in lists)
-        {
+    foreach (var item in lists)
+    {
 #>
             <#= item.Item2 #> = new <#= item.Item3 #>();
 <#
-            var relationChain = model.GetRelationEntityChain(
-                item.Item1.Relation,
-                entity
-                );
-            if (relationChain.RelationType != ModelRelationEntityChainType.ManyToMany)
-            {
-                var relationFields = relationChain.GetRelationFields();
+        var relationChain = model.GetRelationEntityChain(
+            item.Item1.Relation,
+            entity
+            );
+        if (relationChain.RelationType != ModelRelationEntityChainType.ManyToMany)
+        {
+            var relationFields = relationChain.GetRelationFields();
 #>
             <#= item.Item2 #>.CollectionEntityFlatten +=
                 (<#= relationChain.End2.Name #> entity) =>
                 {
 <#
-                foreach (var field in relationFields)
-                {
+            foreach (var field in relationFields)
+            {
 #>
                     entity.<#= field.Value.FieldName #> = <#= field.Key.FieldName #>;
 <#
-                }
+            }
 #>
                 };
 <#
-            }
         }
+    }
 #>
         }
 
@@ -143,11 +147,105 @@ foreach (var entity in model.Entities)
         {
             return new <#= entity.Name #>Repository(conn);
         }
-    }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
 <#
-        var entityKeyFields = entity.GetKeyFields();
-        var entityInsertFields = entity.GetInsertFields();
+    foreach (var field in entityFields)
+    {
+        var type = field.GetFieldType();
+        if (field.IsNullable == true)
+        {
 #>
+            <#= field.FieldName #> = !row.IsNull("<#= field.ColumnName #>") ? (<#= type #>)row["<#= field.ColumnName #>"] : (<#= type #>)null;
+<#
+        }
+        else
+        {
+#>
+            <#= field.FieldName #> = (<#= type #>)row["<#= field.ColumnName #>"];
+<#
+        }
+    }
+#>
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is <#= entity.Name #>))
+                throw new ModelException(
+                    "<#= entity.Name #> cannot be initialized from an entity other than a \"<#= entity.Name #>\""
+                    );
+
+            var typedEntity = (<#= entity.Name #>)entity;
+<#
+    foreach (var field in entity.Fields.OrderBy(x => !string.IsNullOrEmpty(x.Relation)))
+    {
+#>
+            <#= field.FieldName #> = typedEntity.<#= field.FieldName #>;
+<#
+    }
+#>
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+<#
+    foreach (var field in entityKeyFields)
+    {
+#>
+            key.Add("<#= field.FieldName #>", <#= field.FieldName #>);
+<#
+    }
+#>
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new <#= entity.Name #>();
+<#
+    foreach (var field in entity.Fields.OrderBy(x => !string.IsNullOrEmpty(x.Relation)))
+    {
+        if (string.IsNullOrEmpty(field.Relation))
+        {
+#>
+            clone.<#= field.FieldName #> = <#= field.FieldName #>;
+<#
+        }
+        else
+        {
+#>
+            clone.<#= field.FieldName #> = (<#= model.GetEntityType(field.Relation, entity) #>)<#= field.FieldName #>?.Clone();
+<#
+        }
+    }
+#>
+            return clone;
+        }
+    }
 
     public partial class <#= entity.Name #>Repository : BaseRepository
     {
@@ -178,7 +276,7 @@ foreach (var entity in model.Entities)
 
 <#
         var fieldsToValidate =
-            entityInsertFields
+            entityFields
                 .Where(x => x.IsNullable != true && !Type.GetType(x.GetFieldType()).IsValueType)
                 .ToList();
         foreach (var relationField in entityRelationFields)
@@ -202,26 +300,44 @@ foreach (var entity in model.Entities)
 <#
         }
 #>
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert <#= entity.Name #>
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[<#= entity.TableName #>] (<#= string.Join(", ", entityInsertFields.Select(x => "[" + x.FieldName + "]")) #>) VALUES
-                            (<#= string.Join(", ", entityInsertFields.Select(x => "@" + x.FieldName)) #>);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[<#= entity.TableName #>]
+                            WHERE (<#= string.Join(" AND ", entityKeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[<#= entity.TableName #>] (<#= string.Join(", ", entityFields.Select(x => "[" + x.ColumnName + "]")) #>) VALUES
+                                (<#= string.Join(", ", entityFields.Select(x => "@" + x.FieldName)) #>);
+                        END
+<#
+        var updateFields = entityFields.Where(x => !(x.IsKey == true)).ToList();
+        if (updateFields.Count > 0)
+        {
+#>
+                        ELSE
+                        BEGIN
+                            UPDATE [dbo].[<#= entity.TableName #>] SET
+                                <#= string.Join(", ", updateFields.Where(x => !(x.IsKey == true)).Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>
+                            WHERE (<#= string.Join(" AND ", entityKeyFields.Select(x => "[" + x.ColumnName + "] = @" + x.FieldName)) #>);
+                        END
+<#
+        }
+#>
                         ";
 <#
-        foreach (var field in entityInsertFields)
+        foreach (var field in entityFields)
         {
             var path = "typedEntity." + field.FieldName;
                 if (entityRelationFields.ContainsKey(field))
@@ -258,6 +374,7 @@ foreach (var entity in model.Entities)
             switch (relationChain.RelationType)
             {
                 case ModelRelationEntityChainType.ManyToMany:
+                {
                     var relation = relationChain.Parent.Relations.FirstOrDefault(
                         x => x.EntityName.Equals(entity.Name, StringComparison.InvariantCultureIgnoreCase));
                     var relationFields = new Dictionary<string, ModelField>();
@@ -279,8 +396,28 @@ foreach (var entity in model.Entities)
                 {
                     cmd.Parameters.Clear();
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[<#= relationChain.Parent.TableName #>] (<#= string.Join(", ", relationFields.Select(x => "[" + x.Key + "]")) #>) VALUES
-                            (<#= string.Join(", ", relationFields.Select(x => "@" + x.Key)) #>);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[<#= relationChain.Parent.TableName #>]
+                            WHERE (<#= string.Join(" AND ", relationFields.Where(x => x.Value.IsKey == true).Select(x => "[" + x.Value.ColumnName + "] = @" + x.Value.FieldName)) #>)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[<#= relationChain.Parent.TableName #>] (<#= string.Join(", ", relationFields.Select(x => "[" + x.Key + "]")) #>) VALUES
+                                (<#= string.Join(", ", relationFields.Select(x => "@" + x.Value.FieldName)) #>);
+                        END
+<#
+                    var relationUpdateFields = relationFields.Where(x => !(x.Value.IsKey == true));
+                    if (relationUpdateFields.Count() > 0)
+                    {
+#>
+                        ELSE
+                        BEGIN
+                            UPDATE [dbo].[<#= relationChain.Parent.TableName #>] SET
+                                <#= string.Join(", ", relationUpdateFields.Select(x => "[" + x.Key + "] = @" + x.Value.FieldName)) #>
+                            WHERE (<#= string.Join(" AND ", relationUpdateFields.Where(x => x.Value.IsKey == true).Select(x => "[" + x.Key + "] = @" + x.Value.FieldName)) #>);
+                        END
+<#
+                    }
+#>
                         ";
 <#
                     foreach (var field in relationFields)
@@ -289,7 +426,7 @@ foreach (var entity in model.Entities)
                         if (relationChain.End2.Fields.Contains(field.Value))
                             path = "item";
 #>
-                    cmd.Parameters.AddWithValue("@<#= field.Key #>", <#= path #>.<#= field.Value.FieldName #>);
+                    cmd.Parameters.AddWithValue("@<#= field.Value.FieldName #>", <#= path #>.<#= field.Value.FieldName #>);
 <#
                     }
 #>
@@ -302,6 +439,7 @@ foreach (var entity in model.Entities)
 
 <#
                     break;
+                }
             }
         }
 #>
@@ -345,6 +483,7 @@ foreach (var entity in model.Entities)
             {
                 case ModelRelationEntityChainType.ManyToMany:
                 case ModelRelationEntityChainType.OneToMany:
+                {
                     var relation = relationChain.Parent.Relations.FirstOrDefault(
                         x => x.EntityName.Equals(entity.Name, StringComparison.InvariantCultureIgnoreCase));
                     var relationFields = new Dictionary<string, ModelField>();
@@ -368,13 +507,13 @@ foreach (var entity in model.Entities)
                 cmd.Parameters.Clear();
                 cmd.CommandText = @"
                     DELETE FROM [dbo].[<#= relationChain.Parent.TableName #>] WHERE
-                        (<#= string.Join("AND ", relationFields.Select(x => "[" + x.Key + "] = @" + x.Value.FieldName)) #>);
+                        (<#= string.Join(" AND ", relationFields.Select(x => "[" + x.Key + "] = @" + x.Value.FieldName)) #>);
                     ";
 <#
                     foreach (var field in relationFields)
                     {
 #>
-                cmd.Parameters.AddWithValue("@<#= field.Key #>", typedEntity.<#= field.Value.FieldName #>);
+                cmd.Parameters.AddWithValue("@<#= field.Value.FieldName #>", typedEntity.<#= field.Value.FieldName #>);
 <#
                     }
 #>
@@ -386,9 +525,12 @@ foreach (var entity in model.Entities)
 
 <#
                     break;
+                }
                 case ModelRelationEntityChainType.ManyToOne:
+                {
                     nestedObjectsToSkip.Add(relationField);
                     break;
+                }
             }
         }
 #>
@@ -409,7 +551,7 @@ foreach (var entity in model.Entities)
 <#
         }
 #>
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
 <#
@@ -453,6 +595,204 @@ foreach (var entity in model.Entities)
                     #endregion
                 }
             }
+        }
+
+<#
+    var keyFields = new Dictionary<ModelField, Tuple<string, string>>();
+    foreach (var field in entityKeyFields)
+        keyFields.Add(field,
+            new Tuple<string, string>(
+                Char.ToLowerInvariant(field.FieldName[0]) + field.FieldName.Substring(1),
+                field.GetFieldType()
+                ));
+#>
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+<#
+    foreach (var field in keyFields)
+    {
+#>
+            if (!key.ContainsKey("<#= field.Key.FieldName #>"))
+                throw new ArgumentNullException("<#= field.Key.FieldName #>");
+<#
+    }
+#>
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 <#= string.Join(", ", entityFields.Select(x => "this.[" + x.ColumnName + "] AS [" + x.ColumnName + "]")) #>
+                    FROM [dbo].[<#= entity.TableName #>] AS this
+                    WHERE (<#= string.Join(" AND ", keyFields.Select(x => "[" + x.Key.ColumnName + "] = @" + x.Key.FieldName)) #>);
+                    ";
+
+<#
+    foreach (var field in keyFields)
+    {
+#>
+                cmd.Parameters.AddWithValue("@<#= field.Key.FieldName #>", (<#= field.Value.Item2 #>)key["<#= field.Key.FieldName #>"]);
+<#
+    }
+#>
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new <#= entity.Name #>();
+                entity.FromDataRow(tbl.Rows[0]);
+
+<#
+    foreach (var relationField in entity.GetRelationFields())
+    {
+        var relationChain = model.GetRelationEntityChain(
+            relationField.Relation,
+            entity
+            );
+        switch (relationChain.RelationType)
+        {
+            case ModelRelationEntityChainType.ManyToMany:
+            {
+                var relation = relationChain.Parent.Relations.FirstOrDefault(
+                    x => x.EntityName.Equals(entity.Name, StringComparison.InvariantCultureIgnoreCase));
+                var relationFields = new Dictionary<string, ModelField>();
+                foreach (var field in relation.Fields)
+                    relationFields.Add(field.ParentColumnName,
+                        entity.Fields.FirstOrDefault(
+                            x => x.ColumnName != null &&
+                            x.ColumnName.Equals(field.ChildColumnName, StringComparison.InvariantCultureIgnoreCase))
+                            );
+                var name = Char.ToLowerInvariant(relationChain.End2.Name[0]) + relationChain.End2.Name.Substring(1);
+#>
+                #region Load <#= relationChain.End2.Name #>
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT <#= string.Join(", ", relationChain.End2.GetFields().Select(x => "child.[" + x.ColumnName + "] AS [" + x.ColumnName + "]")) #>
+                    FROM [dbo].[<#= relationChain.End2.TableName #>] AS child
+                    RIGHT JOIN [dbo].[<#= relationChain.Parent.TableName #>] AS parent
+                        ON (<#= string.Join(" AND ", relationChain.Relation.Fields.Select(x => "parent.[" + x.ParentColumnName + "] = " + "child.[" + x.ChildColumnName + "]")) #>)
+                    WHERE (<#= string.Join(" AND ", relationFields.Select(x => "parent.[" + x.Key + "] = @" + x.Value.FieldName)) #>);
+                    ";
+
+<#
+                    foreach (var field in relationFields)
+                    {
+#>
+                cmd.Parameters.AddWithValue("@<#= field.Value.FieldName #>", entity.<#= field.Value.FieldName #>);
+<#
+                    }
+#>
+
+                var <#= name #>Tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    <#= name #>Tbl.Load(reader);
+
+                if (<#= name #>Tbl.Rows.Count > 0)
+                    foreach (DataRow row in <#= name #>Tbl.Rows)
+                    {
+                        var child = new <#= relationChain.End2.Name #>();
+                        child.FromDataRow(row);
+                        entity.<#= relationField.FieldName #>.Add(child);
+                    }
+                #endregion
+
+<#
+                break;
+            }
+            case ModelRelationEntityChainType.OneToMany:
+            case ModelRelationEntityChainType.ManyToOne:
+            case ModelRelationEntityChainType.OneToOne:
+            {
+                var relationFields = new Dictionary<string, ModelField>();
+                foreach (var field in relationChain.Relation.Fields)
+                    relationFields.Add(field.ParentColumnName,
+                        entity.Fields.FirstOrDefault(
+                            x => x.ColumnName != null &&
+                            x.ColumnName.Equals(field.ChildColumnName, StringComparison.InvariantCultureIgnoreCase))
+                            );
+                var name = Char.ToLowerInvariant(relationChain.End2.Name[0]) + relationChain.End2.Name.Substring(1);
+#>
+                #region Load <#= relationChain.End2.Name #>
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT <#= string.Join(", ", relationChain.End2.GetFields().Select(x => "[" + x.ColumnName + "] AS [" + x.ColumnName + "]")) #>
+                    FROM [dbo].[<#= relationChain.End2.TableName #>]
+                    WHERE (<#= string.Join(" AND ", relationFields.Select(x => "[" + x.Key + "] = @" + x.Value.FieldName)) #>);
+                    ";
+
+<#
+                    foreach (var field in relationFields)
+                    {
+#>
+                cmd.Parameters.AddWithValue("@<#= field.Value.FieldName #>", entity.<#= field.Value.FieldName #>);
+<#
+                    }
+#>
+
+                var <#= name #>Tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    <#= name #>Tbl.Load(reader);
+
+                if (<#= name #>Tbl.Rows.Count > 0)
+                    foreach (DataRow row in <#= name #>Tbl.Rows)
+                    {
+                        var child = new <#= relationChain.End2.Name #>();
+                        child.FromDataRow(row);
+<#
+                if (relationChain.RelationType == ModelRelationEntityChainType.OneToMany)
+                {
+#>
+                        entity.<#= relationField.FieldName #>.Add(child);
+<#
+                }
+                else
+                {
+#>
+                        entity.<#= relationField.FieldName #> = child;
+<#
+                }
+#>
+                    }
+                #endregion
+
+<#
+                break;
+            }
+        }
+    }
+#>
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public <#= entity.Name #> SelectOne(<#= string.Join(", ", keyFields.Select(x => x.Value.Item2 + " " + x.Value.Item1)) #>)
+        {
+            var key = new Dictionary<string, object>();
+<#
+    foreach (var field in keyFields)
+    {
+#>
+            key.Add("<#= field.Key.FieldName #>", <#= field.Value.Item1 #>);
+<#
+    }
+#>
+            return (<#= entity.Name #>)SelectOne(key);
         }
     }
     #endregion

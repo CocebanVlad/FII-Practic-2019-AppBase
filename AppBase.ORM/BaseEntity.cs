@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
 
 namespace AppBase.ORM
@@ -42,6 +43,51 @@ namespace AppBase.ORM
         public virtual BaseRepository CreateRepository(SqlConnection conn)
         {
             throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public virtual void FromDataRow(DataRow row)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public virtual void FromEntity(BaseEntity entity)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public virtual BaseEntity Clone()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public virtual Dictionary<string, object> GetKey()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Load all missing properties
+        /// </summary>
+        /// <param name="conn">DB connection</param>
+        public void Load(SqlConnection conn)
+        {
+            FromEntity(CreateRepository(conn).SelectOne(GetKey()));
         }
     }
 }

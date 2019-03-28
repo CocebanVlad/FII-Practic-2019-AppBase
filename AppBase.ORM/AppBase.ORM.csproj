@@ -70,6 +70,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Entities.tt</DependentUpon>
     </Compile>
+    <Compile Include="EntityPropertyAttribute.cs" />
     <Compile Include="IFlattingObject.cs" />
     <Compile Include="Model.cs" />
     <Compile Include="ModelEntity.cs" />

@@ -27,6 +27,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set UserName
         /// </summary>
+        [EntityProperty]
         public System.String UserName
         {
             get { return _userName; }
@@ -39,6 +40,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Email
         /// </summary>
+        [EntityProperty]
         public System.String Email
         {
             get { return _email; }
@@ -51,6 +53,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set FirstName
         /// </summary>
+        [EntityProperty]
         public System.String FirstName
         {
             get { return _firstName; }
@@ -63,6 +66,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set LastName
         /// </summary>
+        [EntityProperty]
         public System.String LastName
         {
             get { return _lastName; }
@@ -71,11 +75,12 @@ namespace AppBase.ORM.Entities
         #endregion
 
         #region BirthDate
-        private Nullable<System.DateTime> _birthDate;
+        private System.Nullable<System.DateTime> _birthDate;
         /// <summary>
         /// Get or set BirthDate
         /// </summary>
-        public Nullable<System.DateTime> BirthDate
+        [EntityProperty]
+        public System.Nullable<System.DateTime> BirthDate
         {
             get { return _birthDate; }
             set { _birthDate = value; }
@@ -87,6 +92,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Roles
         /// </summary>
+        [EntityProperty]
         public BaseEntityCollection<Role> Roles
         {
             get { return _roles; }
@@ -107,6 +113,71 @@ namespace AppBase.ORM.Entities
         public override BaseRepository CreateRepository(SqlConnection conn)
         {
             return new UserRepository(conn);
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
+            UserName = (System.String)row["UserName"];
+            Email = (System.String)row["Email"];
+            FirstName = !row.IsNull("FirstName") ? (System.String)row["FirstName"] : (System.String)null;
+            LastName = !row.IsNull("LastName") ? (System.String)row["LastName"] : (System.String)null;
+            BirthDate = !row.IsNull("BirthDate") ? (System.Nullable<System.DateTime>)row["BirthDate"] : (System.Nullable<System.DateTime>)null;
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is User))
+                throw new ModelException(
+                    "User cannot be initialized from an entity other than a \"User\""
+                    );
+
+            var typedEntity = (User)entity;
+            UserName = typedEntity.UserName;
+            Email = typedEntity.Email;
+            FirstName = typedEntity.FirstName;
+            LastName = typedEntity.LastName;
+            BirthDate = typedEntity.BirthDate;
+            Roles = typedEntity.Roles;
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("UserName", UserName);
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new User();
+            clone.UserName = UserName;
+            clone.Email = Email;
+            clone.FirstName = FirstName;
+            clone.LastName = LastName;
+            clone.BirthDate = BirthDate;
+            clone.Roles = (BaseEntityCollection<Role>)Roles?.Clone();
+            return clone;
         }
     }
 
@@ -144,23 +215,33 @@ namespace AppBase.ORM.Entities
                 throw new ArgumentNullException("entity.Email");
             #endregion
 
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert User
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[Users] ([UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
-                            (@UserName, @Email, @FirstName, @LastName, @BirthDate);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[Users]
+                            WHERE ([UserName] = @UserName)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[Users] ([UserName], [Email], [FirstName], [LastName], [BirthDate]) VALUES
+                                (@UserName, @Email, @FirstName, @LastName, @BirthDate);
+                        END
+                        ELSE
+                        BEGIN
+                            UPDATE [dbo].[Users] SET
+                                [Email] = @Email, [FirstName] = @FirstName, [LastName] = @LastName, [BirthDate] = @BirthDate
+                            WHERE ([UserName] = @UserName);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
                     cmd.Parameters.AddWithValue("@Email", typedEntity.Email);
@@ -179,8 +260,14 @@ namespace AppBase.ORM.Entities
                 {
                     cmd.Parameters.Clear();
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[UserInRoles] ([UserName], [RoleName]) VALUES
-                            (@UserName, @RoleName);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[UserInRoles]
+                            WHERE ([UserName] = @UserName AND [RoleName] = @RoleName)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[UserInRoles] ([UserName], [RoleName]) VALUES
+                                (@UserName, @RoleName);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@UserName", typedEntity.UserName);
                     cmd.Parameters.AddWithValue("@RoleName", item.RoleName);
@@ -236,7 +323,7 @@ namespace AppBase.ORM.Entities
                     var tempRoles = typedEntity.Roles;
                     typedEntity.Roles = null;
 
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
                     typedEntity.Roles = tempRoles;
@@ -259,6 +346,80 @@ namespace AppBase.ORM.Entities
                 }
             }
         }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (!key.ContainsKey("UserName"))
+                throw new ArgumentNullException("UserName");
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 this.[UserName] AS [UserName], this.[Email] AS [Email], this.[FirstName] AS [FirstName], this.[LastName] AS [LastName], this.[BirthDate] AS [BirthDate]
+                    FROM [dbo].[Users] AS this
+                    WHERE ([UserName] = @UserName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@UserName", (System.String)key["UserName"]);
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new User();
+                entity.FromDataRow(tbl.Rows[0]);
+
+                #region Load Role
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT child.[RoleName] AS [RoleName]
+                    FROM [dbo].[Roles] AS child
+                    RIGHT JOIN [dbo].[UserInRoles] AS parent
+                        ON (parent.[RoleName] = child.[RoleName])
+                    WHERE (parent.[UserName] = @UserName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@UserName", entity.UserName);
+
+                var roleTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    roleTbl.Load(reader);
+
+                if (roleTbl.Rows.Count > 0)
+                    foreach (DataRow row in roleTbl.Rows)
+                    {
+                        var child = new Role();
+                        child.FromDataRow(row);
+                        entity.Roles.Add(child);
+                    }
+                #endregion
+
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public User SelectOne(System.String userName)
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("UserName", userName);
+            return (User)SelectOne(key);
+        }
     }
     #endregion
 
@@ -270,6 +431,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set UserName
         /// </summary>
+        [EntityProperty]
         public System.String UserName
         {
             get { return _userName; }
@@ -282,6 +444,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set RoleName
         /// </summary>
+        [EntityProperty]
         public System.String RoleName
         {
             get { return _roleName; }
@@ -294,6 +457,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set User
         /// </summary>
+        [EntityProperty]
         public User User
         {
             get { return _user; }
@@ -306,6 +470,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Role
         /// </summary>
+        [EntityProperty]
         public Role Role
         {
             get { return _role; }
@@ -325,6 +490,65 @@ namespace AppBase.ORM.Entities
         public override BaseRepository CreateRepository(SqlConnection conn)
         {
             return new UserInRoleRepository(conn);
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
+            UserName = (System.String)row["UserName"];
+            RoleName = (System.String)row["RoleName"];
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is UserInRole))
+                throw new ModelException(
+                    "UserInRole cannot be initialized from an entity other than a \"UserInRole\""
+                    );
+
+            var typedEntity = (UserInRole)entity;
+            UserName = typedEntity.UserName;
+            RoleName = typedEntity.RoleName;
+            User = typedEntity.User;
+            Role = typedEntity.Role;
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("UserName", UserName);
+            key.Add("RoleName", RoleName);
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new UserInRole();
+            clone.UserName = UserName;
+            clone.RoleName = RoleName;
+            clone.User = (User)User?.Clone();
+            clone.Role = (Role)Role?.Clone();
+            return clone;
         }
     }
 
@@ -355,23 +579,27 @@ namespace AppBase.ORM.Entities
 
             var typedEntity = (UserInRole)entity;
 
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert UserInRole
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[UserInRoles] ([UserName], [RoleName]) VALUES
-                            (@UserName, @RoleName);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[UserInRoles]
+                            WHERE ([UserName] = @UserName AND [RoleName] = @RoleName)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[UserInRoles] ([UserName], [RoleName]) VALUES
+                                (@UserName, @RoleName);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@UserName", typedEntity?.User?.UserName ?? typedEntity.UserName);
                     cmd.Parameters.AddWithValue("@RoleName", typedEntity?.Role?.RoleName ?? typedEntity.RoleName);
@@ -416,7 +644,7 @@ namespace AppBase.ORM.Entities
                     var tempRole = typedEntity.Role;
                     typedEntity.Role = null;
 
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
                     typedEntity.User = tempUser;
@@ -441,6 +669,105 @@ namespace AppBase.ORM.Entities
                 }
             }
         }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (!key.ContainsKey("UserName"))
+                throw new ArgumentNullException("UserName");
+            if (!key.ContainsKey("RoleName"))
+                throw new ArgumentNullException("RoleName");
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 this.[UserName] AS [UserName], this.[RoleName] AS [RoleName]
+                    FROM [dbo].[UserInRoles] AS this
+                    WHERE ([UserName] = @UserName AND [RoleName] = @RoleName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@UserName", (System.String)key["UserName"]);
+                cmd.Parameters.AddWithValue("@RoleName", (System.String)key["RoleName"]);
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new UserInRole();
+                entity.FromDataRow(tbl.Rows[0]);
+
+                #region Load User
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [UserName] AS [UserName], [Email] AS [Email], [FirstName] AS [FirstName], [LastName] AS [LastName], [BirthDate] AS [BirthDate]
+                    FROM [dbo].[Users]
+                    WHERE ([UserName] = @UserName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@UserName", entity.UserName);
+
+                var userTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    userTbl.Load(reader);
+
+                if (userTbl.Rows.Count > 0)
+                    foreach (DataRow row in userTbl.Rows)
+                    {
+                        var child = new User();
+                        child.FromDataRow(row);
+                        entity.User = child;
+                    }
+                #endregion
+
+                #region Load Role
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [RoleName] AS [RoleName]
+                    FROM [dbo].[Roles]
+                    WHERE ([RoleName] = @RoleName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@RoleName", entity.RoleName);
+
+                var roleTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    roleTbl.Load(reader);
+
+                if (roleTbl.Rows.Count > 0)
+                    foreach (DataRow row in roleTbl.Rows)
+                    {
+                        var child = new Role();
+                        child.FromDataRow(row);
+                        entity.Role = child;
+                    }
+                #endregion
+
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public UserInRole SelectOne(System.String userName, System.String roleName)
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("UserName", userName);
+            key.Add("RoleName", roleName);
+            return (UserInRole)SelectOne(key);
+        }
     }
     #endregion
 
@@ -452,6 +779,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set RoleName
         /// </summary>
+        [EntityProperty]
         public System.String RoleName
         {
             get { return _roleName; }
@@ -464,6 +792,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Users
         /// </summary>
+        [EntityProperty]
         public BaseEntityCollection<User> Users
         {
             get { return _users; }
@@ -476,6 +805,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Rights
         /// </summary>
+        [EntityProperty]
         public BaseEntityCollection<Right> Rights
         {
             get { return _rights; }
@@ -502,6 +832,61 @@ namespace AppBase.ORM.Entities
         public override BaseRepository CreateRepository(SqlConnection conn)
         {
             return new RoleRepository(conn);
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
+            RoleName = (System.String)row["RoleName"];
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Role))
+                throw new ModelException(
+                    "Role cannot be initialized from an entity other than a \"Role\""
+                    );
+
+            var typedEntity = (Role)entity;
+            RoleName = typedEntity.RoleName;
+            Users = typedEntity.Users;
+            Rights = typedEntity.Rights;
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("RoleName", RoleName);
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new Role();
+            clone.RoleName = RoleName;
+            clone.Users = (BaseEntityCollection<User>)Users?.Clone();
+            clone.Rights = (BaseEntityCollection<Right>)Rights?.Clone();
+            return clone;
         }
     }
 
@@ -537,23 +922,27 @@ namespace AppBase.ORM.Entities
                 throw new ArgumentNullException("entity.RoleName");
             #endregion
 
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert Role
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[Roles] ([RoleName]) VALUES
-                            (@RoleName);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[Roles]
+                            WHERE ([RoleName] = @RoleName)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[Roles] ([RoleName]) VALUES
+                                (@RoleName);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
                     Debug.WriteLine("RoleRepository.InsertOrUpdate: INSERT INTO [dbo].[Roles]; " +
@@ -568,8 +957,14 @@ namespace AppBase.ORM.Entities
                 {
                     cmd.Parameters.Clear();
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[UserInRoles] ([RoleName], [UserName]) VALUES
-                            (@RoleName, @UserName);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[UserInRoles]
+                            WHERE ([RoleName] = @RoleName AND [UserName] = @UserName)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[UserInRoles] ([RoleName], [UserName]) VALUES
+                                (@RoleName, @UserName);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@RoleName", typedEntity.RoleName);
                     cmd.Parameters.AddWithValue("@UserName", item.UserName);
@@ -638,7 +1033,7 @@ namespace AppBase.ORM.Entities
                     var tempUsers = typedEntity.Users;
                     typedEntity.Users = null;
 
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
                     typedEntity.Users = tempUsers;
@@ -661,6 +1056,103 @@ namespace AppBase.ORM.Entities
                 }
             }
         }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (!key.ContainsKey("RoleName"))
+                throw new ArgumentNullException("RoleName");
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 this.[RoleName] AS [RoleName]
+                    FROM [dbo].[Roles] AS this
+                    WHERE ([RoleName] = @RoleName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@RoleName", (System.String)key["RoleName"]);
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new Role();
+                entity.FromDataRow(tbl.Rows[0]);
+
+                #region Load User
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT child.[UserName] AS [UserName], child.[Email] AS [Email], child.[FirstName] AS [FirstName], child.[LastName] AS [LastName], child.[BirthDate] AS [BirthDate]
+                    FROM [dbo].[Users] AS child
+                    RIGHT JOIN [dbo].[UserInRoles] AS parent
+                        ON (parent.[UserName] = child.[UserName])
+                    WHERE (parent.[RoleName] = @RoleName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@RoleName", entity.RoleName);
+
+                var userTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    userTbl.Load(reader);
+
+                if (userTbl.Rows.Count > 0)
+                    foreach (DataRow row in userTbl.Rows)
+                    {
+                        var child = new User();
+                        child.FromDataRow(row);
+                        entity.Users.Add(child);
+                    }
+                #endregion
+
+                #region Load Right
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [RoleName] AS [RoleName], [FunctionName] AS [FunctionName], [IsEnabled] AS [IsEnabled]
+                    FROM [dbo].[Rights]
+                    WHERE ([RoleName] = @RoleName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@RoleName", entity.RoleName);
+
+                var rightTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    rightTbl.Load(reader);
+
+                if (rightTbl.Rows.Count > 0)
+                    foreach (DataRow row in rightTbl.Rows)
+                    {
+                        var child = new Right();
+                        child.FromDataRow(row);
+                        entity.Rights.Add(child);
+                    }
+                #endregion
+
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public Role SelectOne(System.String roleName)
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("RoleName", roleName);
+            return (Role)SelectOne(key);
+        }
     }
     #endregion
 
@@ -672,6 +1164,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set RoleName
         /// </summary>
+        [EntityProperty]
         public System.String RoleName
         {
             get { return _roleName; }
@@ -684,6 +1177,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set FunctionName
         /// </summary>
+        [EntityProperty]
         public System.String FunctionName
         {
             get { return _functionName; }
@@ -696,6 +1190,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set IsEnabled
         /// </summary>
+        [EntityProperty]
         public System.Boolean IsEnabled
         {
             get { return _isEnabled; }
@@ -708,6 +1203,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Function
         /// </summary>
+        [EntityProperty]
         public Function Function
         {
             get { return _function; }
@@ -720,6 +1216,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Role
         /// </summary>
+        [EntityProperty]
         public Role Role
         {
             get { return _role; }
@@ -739,6 +1236,68 @@ namespace AppBase.ORM.Entities
         public override BaseRepository CreateRepository(SqlConnection conn)
         {
             return new RightRepository(conn);
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
+            RoleName = (System.String)row["RoleName"];
+            FunctionName = (System.String)row["FunctionName"];
+            IsEnabled = (System.Boolean)row["IsEnabled"];
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Right))
+                throw new ModelException(
+                    "Right cannot be initialized from an entity other than a \"Right\""
+                    );
+
+            var typedEntity = (Right)entity;
+            RoleName = typedEntity.RoleName;
+            FunctionName = typedEntity.FunctionName;
+            IsEnabled = typedEntity.IsEnabled;
+            Function = typedEntity.Function;
+            Role = typedEntity.Role;
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("RoleName", RoleName);
+            key.Add("FunctionName", FunctionName);
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new Right();
+            clone.RoleName = RoleName;
+            clone.FunctionName = FunctionName;
+            clone.IsEnabled = IsEnabled;
+            clone.Function = (Function)Function?.Clone();
+            clone.Role = (Role)Role?.Clone();
+            return clone;
         }
     }
 
@@ -769,23 +1328,33 @@ namespace AppBase.ORM.Entities
 
             var typedEntity = (Right)entity;
 
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert Right
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[Rights] ([RoleName], [FunctionName], [IsEnabled]) VALUES
-                            (@RoleName, @FunctionName, @IsEnabled);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[Rights]
+                            WHERE ([RoleName] = @RoleName AND [FunctionName] = @FunctionName)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[Rights] ([RoleName], [FunctionName], [IsEnabled]) VALUES
+                                (@RoleName, @FunctionName, @IsEnabled);
+                        END
+                        ELSE
+                        BEGIN
+                            UPDATE [dbo].[Rights] SET
+                                [IsEnabled] = @IsEnabled
+                            WHERE ([RoleName] = @RoleName AND [FunctionName] = @FunctionName);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@RoleName", typedEntity?.Role?.RoleName ?? typedEntity.RoleName);
                     cmd.Parameters.AddWithValue("@FunctionName", typedEntity?.Function?.FunctionName ?? typedEntity.FunctionName);
@@ -831,7 +1400,7 @@ namespace AppBase.ORM.Entities
                     var tempRole = typedEntity.Role;
                     typedEntity.Role = null;
 
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
                     typedEntity.Function = tempFunction;
@@ -856,6 +1425,105 @@ namespace AppBase.ORM.Entities
                 }
             }
         }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (!key.ContainsKey("RoleName"))
+                throw new ArgumentNullException("RoleName");
+            if (!key.ContainsKey("FunctionName"))
+                throw new ArgumentNullException("FunctionName");
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 this.[RoleName] AS [RoleName], this.[FunctionName] AS [FunctionName], this.[IsEnabled] AS [IsEnabled]
+                    FROM [dbo].[Rights] AS this
+                    WHERE ([RoleName] = @RoleName AND [FunctionName] = @FunctionName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@RoleName", (System.String)key["RoleName"]);
+                cmd.Parameters.AddWithValue("@FunctionName", (System.String)key["FunctionName"]);
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new Right();
+                entity.FromDataRow(tbl.Rows[0]);
+
+                #region Load Function
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [FunctionName] AS [FunctionName]
+                    FROM [dbo].[Functions]
+                    WHERE ([FunctionName] = @FunctionName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@FunctionName", entity.FunctionName);
+
+                var functionTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    functionTbl.Load(reader);
+
+                if (functionTbl.Rows.Count > 0)
+                    foreach (DataRow row in functionTbl.Rows)
+                    {
+                        var child = new Function();
+                        child.FromDataRow(row);
+                        entity.Function = child;
+                    }
+                #endregion
+
+                #region Load Role
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [RoleName] AS [RoleName]
+                    FROM [dbo].[Roles]
+                    WHERE ([RoleName] = @RoleName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@RoleName", entity.RoleName);
+
+                var roleTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    roleTbl.Load(reader);
+
+                if (roleTbl.Rows.Count > 0)
+                    foreach (DataRow row in roleTbl.Rows)
+                    {
+                        var child = new Role();
+                        child.FromDataRow(row);
+                        entity.Role = child;
+                    }
+                #endregion
+
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public Right SelectOne(System.String roleName, System.String functionName)
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("RoleName", roleName);
+            key.Add("FunctionName", functionName);
+            return (Right)SelectOne(key);
+        }
     }
     #endregion
 
@@ -867,6 +1535,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Cod
         /// </summary>
+        [EntityProperty]
         public System.String Cod
         {
             get { return _cod; }
@@ -879,6 +1548,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Description
         /// </summary>
+        [EntityProperty]
         public System.String Description
         {
             get { return _description; }
@@ -891,6 +1561,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Rows
         /// </summary>
+        [EntityProperty]
         public BaseEntityCollection<TabRow> Rows
         {
             get { return _rows; }
@@ -916,6 +1587,62 @@ namespace AppBase.ORM.Entities
         public override BaseRepository CreateRepository(SqlConnection conn)
         {
             return new TabRepository(conn);
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
+            Cod = (System.String)row["Cod"];
+            Description = (System.String)row["Description"];
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Tab))
+                throw new ModelException(
+                    "Tab cannot be initialized from an entity other than a \"Tab\""
+                    );
+
+            var typedEntity = (Tab)entity;
+            Cod = typedEntity.Cod;
+            Description = typedEntity.Description;
+            Rows = typedEntity.Rows;
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("Cod", Cod);
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new Tab();
+            clone.Cod = Cod;
+            clone.Description = Description;
+            clone.Rows = (BaseEntityCollection<TabRow>)Rows?.Clone();
+            return clone;
         }
     }
 
@@ -953,23 +1680,33 @@ namespace AppBase.ORM.Entities
                 throw new ArgumentNullException("entity.Description");
             #endregion
 
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert Tab
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
-                            (@Cod, @Description);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[Tabs]
+                            WHERE ([Cod] = @Cod)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[Tabs] ([Cod], [Description]) VALUES
+                                (@Cod, @Description);
+                        END
+                        ELSE
+                        BEGIN
+                            UPDATE [dbo].[Tabs] SET
+                                [Description] = @Description
+                            WHERE ([Cod] = @Cod);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
                     cmd.Parameters.AddWithValue("@Description", typedEntity.Description);
@@ -1013,7 +1750,7 @@ namespace AppBase.ORM.Entities
                     DELETE FROM [dbo].[TabRows] WHERE
                         ([CodTab] = @Cod);
                     ";
-                cmd.Parameters.AddWithValue("@CodTab", typedEntity.Cod);
+                cmd.Parameters.AddWithValue("@Cod", typedEntity.Cod);
                 Debug.WriteLine("TabRepository.Delete: DELETE FROM [dbo].[TabRows]; " +
                     "SkipNestedObjects=" + skipNestedObjects);
                 Debug.WriteLine("    " + "Cod=" + typedEntity.Cod);
@@ -1022,7 +1759,7 @@ namespace AppBase.ORM.Entities
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
                 }
@@ -1043,6 +1780,78 @@ namespace AppBase.ORM.Entities
                 }
             }
         }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (!key.ContainsKey("Cod"))
+                throw new ArgumentNullException("Cod");
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 this.[Cod] AS [Cod], this.[Description] AS [Description]
+                    FROM [dbo].[Tabs] AS this
+                    WHERE ([Cod] = @Cod);
+                    ";
+
+                cmd.Parameters.AddWithValue("@Cod", (System.String)key["Cod"]);
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new Tab();
+                entity.FromDataRow(tbl.Rows[0]);
+
+                #region Load TabRow
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [CodTab] AS [CodTab], [Cod] AS [Cod], [Description] AS [Description]
+                    FROM [dbo].[TabRows]
+                    WHERE ([CodTab] = @Cod);
+                    ";
+
+                cmd.Parameters.AddWithValue("@Cod", entity.Cod);
+
+                var tabRowTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tabRowTbl.Load(reader);
+
+                if (tabRowTbl.Rows.Count > 0)
+                    foreach (DataRow row in tabRowTbl.Rows)
+                    {
+                        var child = new TabRow();
+                        child.FromDataRow(row);
+                        entity.Rows.Add(child);
+                    }
+                #endregion
+
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public Tab SelectOne(System.String cod)
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("Cod", cod);
+            return (Tab)SelectOne(key);
+        }
     }
     #endregion
 
@@ -1054,6 +1863,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set CodTab
         /// </summary>
+        [EntityProperty]
         public System.String CodTab
         {
             get { return _codTab; }
@@ -1066,6 +1876,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Cod
         /// </summary>
+        [EntityProperty]
         public System.String Cod
         {
             get { return _cod; }
@@ -1078,6 +1889,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Description
         /// </summary>
+        [EntityProperty]
         public System.String Description
         {
             get { return _description; }
@@ -1090,6 +1902,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Tab
         /// </summary>
+        [EntityProperty]
         public Tab Tab
         {
             get { return _tab; }
@@ -1102,6 +1915,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Detail
         /// </summary>
+        [EntityProperty]
         public TabRowDetail Detail
         {
             get { return _detail; }
@@ -1121,6 +1935,68 @@ namespace AppBase.ORM.Entities
         public override BaseRepository CreateRepository(SqlConnection conn)
         {
             return new TabRowRepository(conn);
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
+            CodTab = (System.String)row["CodTab"];
+            Cod = (System.String)row["Cod"];
+            Description = (System.String)row["Description"];
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is TabRow))
+                throw new ModelException(
+                    "TabRow cannot be initialized from an entity other than a \"TabRow\""
+                    );
+
+            var typedEntity = (TabRow)entity;
+            CodTab = typedEntity.CodTab;
+            Cod = typedEntity.Cod;
+            Description = typedEntity.Description;
+            Tab = typedEntity.Tab;
+            Detail = typedEntity.Detail;
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("CodTab", CodTab);
+            key.Add("Cod", Cod);
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new TabRow();
+            clone.CodTab = CodTab;
+            clone.Cod = Cod;
+            clone.Description = Description;
+            clone.Tab = (Tab)Tab?.Clone();
+            clone.Detail = (TabRowDetail)Detail?.Clone();
+            return clone;
         }
     }
 
@@ -1156,23 +2032,33 @@ namespace AppBase.ORM.Entities
                 throw new ArgumentNullException("entity.Description");
             #endregion
 
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert TabRow
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
-                            (@CodTab, @Cod, @Description);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[TabRows]
+                            WHERE ([CodTab] = @CodTab AND [Cod] = @Cod)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[TabRows] ([CodTab], [Cod], [Description]) VALUES
+                                (@CodTab, @Cod, @Description);
+                        END
+                        ELSE
+                        BEGIN
+                            UPDATE [dbo].[TabRows] SET
+                                [Description] = @Description
+                            WHERE ([CodTab] = @CodTab AND [Cod] = @Cod);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@CodTab", typedEntity?.Detail?.CodTab ?? typedEntity.CodTab);
                     cmd.Parameters.AddWithValue("@Cod", typedEntity?.Detail?.Cod ?? typedEntity.Cod);
@@ -1216,7 +2102,7 @@ namespace AppBase.ORM.Entities
                     var tempTab = typedEntity.Tab;
                     typedEntity.Tab = null;
 
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
                     typedEntity.Tab = tempTab;
@@ -1240,6 +2126,106 @@ namespace AppBase.ORM.Entities
                 }
             }
         }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (!key.ContainsKey("CodTab"))
+                throw new ArgumentNullException("CodTab");
+            if (!key.ContainsKey("Cod"))
+                throw new ArgumentNullException("Cod");
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 this.[CodTab] AS [CodTab], this.[Cod] AS [Cod], this.[Description] AS [Description]
+                    FROM [dbo].[TabRows] AS this
+                    WHERE ([CodTab] = @CodTab AND [Cod] = @Cod);
+                    ";
+
+                cmd.Parameters.AddWithValue("@CodTab", (System.String)key["CodTab"]);
+                cmd.Parameters.AddWithValue("@Cod", (System.String)key["Cod"]);
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new TabRow();
+                entity.FromDataRow(tbl.Rows[0]);
+
+                #region Load Tab
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [Cod] AS [Cod], [Description] AS [Description]
+                    FROM [dbo].[Tabs]
+                    WHERE ([CodTab] = @Cod);
+                    ";
+
+                cmd.Parameters.AddWithValue("@Cod", entity.Cod);
+
+                var tabTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tabTbl.Load(reader);
+
+                if (tabTbl.Rows.Count > 0)
+                    foreach (DataRow row in tabTbl.Rows)
+                    {
+                        var child = new Tab();
+                        child.FromDataRow(row);
+                        entity.Tab = child;
+                    }
+                #endregion
+
+                #region Load TabRowDetail
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [CodTab] AS [CodTab], [Cod] AS [Cod], [Pos] AS [Pos], [ExtraInfo] AS [ExtraInfo]
+                    FROM [dbo].[TabRowDetails]
+                    WHERE ([CodTab] = @CodTab AND [Cod] = @Cod);
+                    ";
+
+                cmd.Parameters.AddWithValue("@CodTab", entity.CodTab);
+                cmd.Parameters.AddWithValue("@Cod", entity.Cod);
+
+                var tabRowDetailTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tabRowDetailTbl.Load(reader);
+
+                if (tabRowDetailTbl.Rows.Count > 0)
+                    foreach (DataRow row in tabRowDetailTbl.Rows)
+                    {
+                        var child = new TabRowDetail();
+                        child.FromDataRow(row);
+                        entity.Detail = child;
+                    }
+                #endregion
+
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public TabRow SelectOne(System.String codTab, System.String cod)
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("CodTab", codTab);
+            key.Add("Cod", cod);
+            return (TabRow)SelectOne(key);
+        }
     }
     #endregion
 
@@ -1251,6 +2237,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set CodTab
         /// </summary>
+        [EntityProperty]
         public System.String CodTab
         {
             get { return _codTab; }
@@ -1263,6 +2250,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Cod
         /// </summary>
+        [EntityProperty]
         public System.String Cod
         {
             get { return _cod; }
@@ -1271,11 +2259,12 @@ namespace AppBase.ORM.Entities
         #endregion
 
         #region Pos
-        private Nullable<System.Int32> _pos;
+        private System.Nullable<System.Int32> _pos;
         /// <summary>
         /// Get or set Pos
         /// </summary>
-        public Nullable<System.Int32> Pos
+        [EntityProperty]
+        public System.Nullable<System.Int32> Pos
         {
             get { return _pos; }
             set { _pos = value; }
@@ -1287,6 +2276,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set ExtraInfo
         /// </summary>
+        [EntityProperty]
         public System.String ExtraInfo
         {
             get { return _extraInfo; }
@@ -1299,6 +2289,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set TabRow
         /// </summary>
+        [EntityProperty]
         public TabRow TabRow
         {
             get { return _tabRow; }
@@ -1318,6 +2309,69 @@ namespace AppBase.ORM.Entities
         public override BaseRepository CreateRepository(SqlConnection conn)
         {
             return new TabRowDetailRepository(conn);
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
+            CodTab = (System.String)row["CodTab"];
+            Cod = (System.String)row["Cod"];
+            Pos = !row.IsNull("Pos") ? (System.Nullable<System.Int32>)row["Pos"] : (System.Nullable<System.Int32>)null;
+            ExtraInfo = !row.IsNull("ExtraInfo") ? (System.String)row["ExtraInfo"] : (System.String)null;
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is TabRowDetail))
+                throw new ModelException(
+                    "TabRowDetail cannot be initialized from an entity other than a \"TabRowDetail\""
+                    );
+
+            var typedEntity = (TabRowDetail)entity;
+            CodTab = typedEntity.CodTab;
+            Cod = typedEntity.Cod;
+            Pos = typedEntity.Pos;
+            ExtraInfo = typedEntity.ExtraInfo;
+            TabRow = typedEntity.TabRow;
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("CodTab", CodTab);
+            key.Add("Cod", Cod);
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new TabRowDetail();
+            clone.CodTab = CodTab;
+            clone.Cod = Cod;
+            clone.Pos = Pos;
+            clone.ExtraInfo = ExtraInfo;
+            clone.TabRow = (TabRow)TabRow?.Clone();
+            return clone;
         }
     }
 
@@ -1348,23 +2402,33 @@ namespace AppBase.ORM.Entities
 
             var typedEntity = (TabRowDetail)entity;
 
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert TabRowDetail
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[TabRowDetails] ([CodTab], [Cod], [Pos], [ExtraInfo]) VALUES
-                            (@CodTab, @Cod, @Pos, @ExtraInfo);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[TabRowDetails]
+                            WHERE ([CodTab] = @CodTab AND [Cod] = @Cod)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[TabRowDetails] ([CodTab], [Cod], [Pos], [ExtraInfo]) VALUES
+                                (@CodTab, @Cod, @Pos, @ExtraInfo);
+                        END
+                        ELSE
+                        BEGIN
+                            UPDATE [dbo].[TabRowDetails] SET
+                                [Pos] = @Pos, [ExtraInfo] = @ExtraInfo
+                            WHERE ([CodTab] = @CodTab AND [Cod] = @Cod);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@CodTab", typedEntity?.TabRow?.CodTab ?? typedEntity.CodTab);
                     cmd.Parameters.AddWithValue("@Cod", typedEntity?.TabRow?.Cod ?? typedEntity.Cod);
@@ -1406,7 +2470,7 @@ namespace AppBase.ORM.Entities
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
                 }
@@ -1428,6 +2492,83 @@ namespace AppBase.ORM.Entities
                 }
             }
         }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (!key.ContainsKey("CodTab"))
+                throw new ArgumentNullException("CodTab");
+            if (!key.ContainsKey("Cod"))
+                throw new ArgumentNullException("Cod");
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 this.[CodTab] AS [CodTab], this.[Cod] AS [Cod], this.[Pos] AS [Pos], this.[ExtraInfo] AS [ExtraInfo]
+                    FROM [dbo].[TabRowDetails] AS this
+                    WHERE ([CodTab] = @CodTab AND [Cod] = @Cod);
+                    ";
+
+                cmd.Parameters.AddWithValue("@CodTab", (System.String)key["CodTab"]);
+                cmd.Parameters.AddWithValue("@Cod", (System.String)key["Cod"]);
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new TabRowDetail();
+                entity.FromDataRow(tbl.Rows[0]);
+
+                #region Load TabRow
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+                    SELECT [CodTab] AS [CodTab], [Cod] AS [Cod], [Description] AS [Description]
+                    FROM [dbo].[TabRows]
+                    WHERE ([CodTab] = @CodTab AND [Cod] = @Cod);
+                    ";
+
+                cmd.Parameters.AddWithValue("@CodTab", entity.CodTab);
+                cmd.Parameters.AddWithValue("@Cod", entity.Cod);
+
+                var tabRowTbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tabRowTbl.Load(reader);
+
+                if (tabRowTbl.Rows.Count > 0)
+                    foreach (DataRow row in tabRowTbl.Rows)
+                    {
+                        var child = new TabRow();
+                        child.FromDataRow(row);
+                        entity.TabRow = child;
+                    }
+                #endregion
+
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public TabRowDetail SelectOne(System.String codTab, System.String cod)
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("CodTab", codTab);
+            key.Add("Cod", cod);
+            return (TabRowDetail)SelectOne(key);
+        }
     }
     #endregion
 
@@ -1439,6 +2580,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set FunctionName
         /// </summary>
+        [EntityProperty]
         public System.String FunctionName
         {
             get { return _functionName; }
@@ -1458,6 +2600,57 @@ namespace AppBase.ORM.Entities
         public override BaseRepository CreateRepository(SqlConnection conn)
         {
             return new FunctionRepository(conn);
+        }
+
+        /// <summary>
+        /// Initialize entity from a data row
+        /// </summary>
+        /// <param name="row">Data row</param>
+        public override void FromDataRow(DataRow row)
+        {
+            if (row == null)
+                throw new ArgumentNullException("row");
+
+            FunctionName = (System.String)row["FunctionName"];
+        }
+
+        /// <summary>
+        /// Initialize entity from another entity
+        /// </summary>
+        /// <param name="entity">Entity</param>
+        public override void FromEntity(BaseEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException("entity");
+            if (!(entity is Function))
+                throw new ModelException(
+                    "Function cannot be initialized from an entity other than a \"Function\""
+                    );
+
+            var typedEntity = (Function)entity;
+            FunctionName = typedEntity.FunctionName;
+        }
+
+        /// <summary>
+        /// Get entity key
+        /// </summary>
+        /// <returns>A dictionary that represents the key</returns>
+        public override Dictionary<string, object> GetKey()
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("FunctionName", FunctionName);
+            return key;
+        }
+
+        /// <summary>
+        /// Clone entity
+        /// </summary>
+        /// <returns>A clone</returns>
+        public override BaseEntity Clone()
+        {
+            var clone = new Function();
+            clone.FunctionName = FunctionName;
+            return clone;
         }
     }
 
@@ -1493,23 +2686,27 @@ namespace AppBase.ORM.Entities
                 throw new ArgumentNullException("entity.FunctionName");
             #endregion
 
-            Delete(entity, tr, skipNestedObjects);
-
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.Transaction = tr;
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).InsertOrUpdate(nestedEntity, tr, true);
                 }
                 else
                 {
                     #region Insert Function
                     cmd.CommandText = @"
-                        INSERT INTO [dbo].[Functions] ([FunctionName]) VALUES
-                            (@FunctionName);
+                        IF NOT EXISTS (
+                            SELECT TOP 1 * FROM [dbo].[Functions]
+                            WHERE ([FunctionName] = @FunctionName)
+                            )
+                        BEGIN
+                            INSERT INTO [dbo].[Functions] ([FunctionName]) VALUES
+                                (@FunctionName);
+                        END
                         ";
                     cmd.Parameters.AddWithValue("@FunctionName", typedEntity.FunctionName);
                     Debug.WriteLine("FunctionRepository.InsertOrUpdate: INSERT INTO [dbo].[Functions]; " +
@@ -1548,7 +2745,7 @@ namespace AppBase.ORM.Entities
 
                 if (!skipNestedObjects)
                 {
-                    foreach (var nestedEntity in typedEntity.Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
+                    foreach (var nestedEntity in typedEntity.Clone().Flatten().OrderBy(x => Hierarchy.IndexOf(x.GetType())))
                         nestedEntity.CreateRepository(Connection).Delete(nestedEntity, tr, true);
 
                 }
@@ -1568,6 +2765,55 @@ namespace AppBase.ORM.Entities
                     #endregion
                 }
             }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <param name="key">Key (a dictionary containing key column name and its value)</param>
+        /// <returns>An entity</returns>
+        public override BaseEntity SelectOne(Dictionary<string, object> key)
+        {
+            #region Validate key
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (!key.ContainsKey("FunctionName"))
+                throw new ArgumentNullException("FunctionName");
+            #endregion
+
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT TOP 1 this.[FunctionName] AS [FunctionName]
+                    FROM [dbo].[Functions] AS this
+                    WHERE ([FunctionName] = @FunctionName);
+                    ";
+
+                cmd.Parameters.AddWithValue("@FunctionName", (System.String)key["FunctionName"]);
+
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count == 0)
+                    return null;
+
+                var entity = new Function();
+                entity.FromDataRow(tbl.Rows[0]);
+
+                return entity;
+            }
+        }
+
+        /// <summary>
+        /// Select one entity by key
+        /// </summary>
+        /// <returns>An entity</returns>
+        public Function SelectOne(System.String functionName)
+        {
+            var key = new Dictionary<string, object>();
+            key.Add("FunctionName", functionName);
+            return (Function)SelectOne(key);
         }
     }
     #endregion
