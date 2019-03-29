@@ -9,6 +9,7 @@
 
 namespace AppBase.ORM.Entities
 {
+    using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
     using System.Collections.Specialized;
@@ -27,6 +28,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set UserName
         /// </summary>
+        [JsonProperty("userName")]
         [EntityProperty]
         public System.String UserName
         {
@@ -40,6 +42,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Email
         /// </summary>
+        [JsonProperty("email")]
         [EntityProperty]
         public System.String Email
         {
@@ -53,6 +56,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set FirstName
         /// </summary>
+        [JsonProperty("firstName")]
         [EntityProperty]
         public System.String FirstName
         {
@@ -66,6 +70,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set LastName
         /// </summary>
+        [JsonProperty("lastName")]
         [EntityProperty]
         public System.String LastName
         {
@@ -79,6 +84,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set BirthDate
         /// </summary>
+        [JsonProperty("birthDate")]
         [EntityProperty]
         public System.Nullable<System.DateTime> BirthDate
         {
@@ -92,6 +98,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Roles
         /// </summary>
+        [JsonProperty("roles")]
         [EntityProperty]
         public BaseEntityCollection<Role> Roles
         {
@@ -413,12 +420,60 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Select one entity by key
         /// </summary>
+        /// <param name="userName">UserName</param>
         /// <returns>An entity</returns>
         public User SelectOne(System.String userName)
         {
             var key = new Dictionary<string, object>();
             key.Add("UserName", userName);
             return (User)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT [UserName] AS [UserName], [Email] AS [Email], [FirstName] AS [FirstName], [LastName] AS [LastName], [BirthDate] AS [BirthDate]
+                    FROM [dbo].[Users]
+                    ORDER BY [UserName]
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new User();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[Users];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion
@@ -431,6 +486,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set UserName
         /// </summary>
+        [JsonProperty("userName")]
         [EntityProperty]
         public System.String UserName
         {
@@ -444,6 +500,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set RoleName
         /// </summary>
+        [JsonProperty("roleName")]
         [EntityProperty]
         public System.String RoleName
         {
@@ -457,6 +514,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set User
         /// </summary>
+        [JsonProperty("user")]
         [EntityProperty]
         public User User
         {
@@ -470,6 +528,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Role
         /// </summary>
+        [JsonProperty("role")]
         [EntityProperty]
         public Role Role
         {
@@ -760,6 +819,8 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Select one entity by key
         /// </summary>
+        /// <param name="userName">UserName</param>
+        /// <param name="roleName">RoleName</param>
         /// <returns>An entity</returns>
         public UserInRole SelectOne(System.String userName, System.String roleName)
         {
@@ -767,6 +828,53 @@ namespace AppBase.ORM.Entities
             key.Add("UserName", userName);
             key.Add("RoleName", roleName);
             return (UserInRole)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT [UserName] AS [UserName], [RoleName] AS [RoleName]
+                    FROM [dbo].[UserInRoles]
+                    ORDER BY [UserName], [RoleName]
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new UserInRole();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[UserInRoles];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion
@@ -779,6 +887,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set RoleName
         /// </summary>
+        [JsonProperty("roleName")]
         [EntityProperty]
         public System.String RoleName
         {
@@ -792,6 +901,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Users
         /// </summary>
+        [JsonProperty("users")]
         [EntityProperty]
         public BaseEntityCollection<User> Users
         {
@@ -805,6 +915,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Rights
         /// </summary>
+        [JsonProperty("rights")]
         [EntityProperty]
         public BaseEntityCollection<Right> Rights
         {
@@ -1146,12 +1257,60 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Select one entity by key
         /// </summary>
+        /// <param name="roleName">RoleName</param>
         /// <returns>An entity</returns>
         public Role SelectOne(System.String roleName)
         {
             var key = new Dictionary<string, object>();
             key.Add("RoleName", roleName);
             return (Role)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT [RoleName] AS [RoleName]
+                    FROM [dbo].[Roles]
+                    ORDER BY [RoleName]
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new Role();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[Roles];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion
@@ -1164,6 +1323,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set RoleName
         /// </summary>
+        [JsonProperty("roleName")]
         [EntityProperty]
         public System.String RoleName
         {
@@ -1177,6 +1337,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set FunctionName
         /// </summary>
+        [JsonProperty("functionName")]
         [EntityProperty]
         public System.String FunctionName
         {
@@ -1190,6 +1351,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set IsEnabled
         /// </summary>
+        [JsonProperty("isEnabled")]
         [EntityProperty]
         public System.Boolean IsEnabled
         {
@@ -1203,6 +1365,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Function
         /// </summary>
+        [JsonProperty("function")]
         [EntityProperty]
         public Function Function
         {
@@ -1216,6 +1379,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Role
         /// </summary>
+        [JsonProperty("role")]
         [EntityProperty]
         public Role Role
         {
@@ -1516,6 +1680,8 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Select one entity by key
         /// </summary>
+        /// <param name="roleName">RoleName</param>
+        /// <param name="functionName">FunctionName</param>
         /// <returns>An entity</returns>
         public Right SelectOne(System.String roleName, System.String functionName)
         {
@@ -1523,6 +1689,53 @@ namespace AppBase.ORM.Entities
             key.Add("RoleName", roleName);
             key.Add("FunctionName", functionName);
             return (Right)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT [RoleName] AS [RoleName], [FunctionName] AS [FunctionName], [IsEnabled] AS [IsEnabled]
+                    FROM [dbo].[Rights]
+                    ORDER BY [RoleName], [FunctionName]
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new Right();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[Rights];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion
@@ -1535,6 +1748,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Cod
         /// </summary>
+        [JsonProperty("cod")]
         [EntityProperty]
         public System.String Cod
         {
@@ -1548,6 +1762,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Description
         /// </summary>
+        [JsonProperty("description")]
         [EntityProperty]
         public System.String Description
         {
@@ -1561,6 +1776,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Rows
         /// </summary>
+        [JsonProperty("rows")]
         [EntityProperty]
         public BaseEntityCollection<TabRow> Rows
         {
@@ -1845,12 +2061,60 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Select one entity by key
         /// </summary>
+        /// <param name="cod">Cod</param>
         /// <returns>An entity</returns>
         public Tab SelectOne(System.String cod)
         {
             var key = new Dictionary<string, object>();
             key.Add("Cod", cod);
             return (Tab)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT [Cod] AS [Cod], [Description] AS [Description]
+                    FROM [dbo].[Tabs]
+                    ORDER BY [Cod]
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new Tab();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[Tabs];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion
@@ -1863,6 +2127,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set CodTab
         /// </summary>
+        [JsonProperty("codTab")]
         [EntityProperty]
         public System.String CodTab
         {
@@ -1876,6 +2141,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Cod
         /// </summary>
+        [JsonProperty("cod")]
         [EntityProperty]
         public System.String Cod
         {
@@ -1889,6 +2155,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Description
         /// </summary>
+        [JsonProperty("description")]
         [EntityProperty]
         public System.String Description
         {
@@ -1902,6 +2169,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Tab
         /// </summary>
+        [JsonProperty("tab")]
         [EntityProperty]
         public Tab Tab
         {
@@ -1915,6 +2183,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Detail
         /// </summary>
+        [JsonProperty("detail")]
         [EntityProperty]
         public TabRowDetail Detail
         {
@@ -2218,6 +2487,8 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Select one entity by key
         /// </summary>
+        /// <param name="codTab">CodTab</param>
+        /// <param name="cod">Cod</param>
         /// <returns>An entity</returns>
         public TabRow SelectOne(System.String codTab, System.String cod)
         {
@@ -2225,6 +2496,53 @@ namespace AppBase.ORM.Entities
             key.Add("CodTab", codTab);
             key.Add("Cod", cod);
             return (TabRow)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT [CodTab] AS [CodTab], [Cod] AS [Cod], [Description] AS [Description]
+                    FROM [dbo].[TabRows]
+                    ORDER BY [CodTab], [Cod]
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new TabRow();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[TabRows];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion
@@ -2237,6 +2555,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set CodTab
         /// </summary>
+        [JsonProperty("codTab")]
         [EntityProperty]
         public System.String CodTab
         {
@@ -2250,6 +2569,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Cod
         /// </summary>
+        [JsonProperty("cod")]
         [EntityProperty]
         public System.String Cod
         {
@@ -2263,6 +2583,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set Pos
         /// </summary>
+        [JsonProperty("pos")]
         [EntityProperty]
         public System.Nullable<System.Int32> Pos
         {
@@ -2276,6 +2597,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set ExtraInfo
         /// </summary>
+        [JsonProperty("extraInfo")]
         [EntityProperty]
         public System.String ExtraInfo
         {
@@ -2289,6 +2611,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set TabRow
         /// </summary>
+        [JsonProperty("tabRow")]
         [EntityProperty]
         public TabRow TabRow
         {
@@ -2561,6 +2884,8 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Select one entity by key
         /// </summary>
+        /// <param name="codTab">CodTab</param>
+        /// <param name="cod">Cod</param>
         /// <returns>An entity</returns>
         public TabRowDetail SelectOne(System.String codTab, System.String cod)
         {
@@ -2568,6 +2893,53 @@ namespace AppBase.ORM.Entities
             key.Add("CodTab", codTab);
             key.Add("Cod", cod);
             return (TabRowDetail)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT [CodTab] AS [CodTab], [Cod] AS [Cod], [Pos] AS [Pos], [ExtraInfo] AS [ExtraInfo]
+                    FROM [dbo].[TabRowDetails]
+                    ORDER BY [CodTab], [Cod]
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new TabRowDetail();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[TabRowDetails];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion
@@ -2580,6 +2952,7 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Get or set FunctionName
         /// </summary>
+        [JsonProperty("functionName")]
         [EntityProperty]
         public System.String FunctionName
         {
@@ -2808,12 +3181,60 @@ namespace AppBase.ORM.Entities
         /// <summary>
         /// Select one entity by key
         /// </summary>
+        /// <param name="functionName">FunctionName</param>
         /// <returns>An entity</returns>
         public Function SelectOne(System.String functionName)
         {
             var key = new Dictionary<string, object>();
             key.Add("FunctionName", functionName);
             return (Function)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT [FunctionName] AS [FunctionName]
+                    FROM [dbo].[Functions]
+                    ORDER BY [FunctionName]
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new Function();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[Functions];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion

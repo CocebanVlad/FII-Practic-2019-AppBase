@@ -115,9 +115,19 @@ namespace AppBase.ORM
         /// <summary>
         /// Select all entities
         /// </summary>
-        /// <param name="amount">Amount</param>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public virtual BaseEntityCollection<BaseEntity> SelectAll(int amount)
+        public virtual BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public virtual int Count()
         {
             throw new NotImplementedException();
         }
@@ -125,10 +135,21 @@ namespace AppBase.ORM
         /// <summary>
         /// Select all filtered entities
         /// </summary>
-        /// <param name="amount">Amount</param>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
         /// <param name="filter">Filter (a dictionary containing key column name and its value)</param>
         /// <returns>A collection of entities</returns>
-        public virtual BaseEntityCollection<BaseEntity> SelectAll(int amount, Dictionary<string, string> filter)
+        public virtual BaseEntityCollection<BaseEntity> SelectAll(int skip, int take, Dictionary<string, string> filter)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <param name="filter">Filter (a dictionary containing key column name and its value)</param>
+        /// <returns>Num. of entities</returns>
+        public virtual int Count(Dictionary<string, string> filter)
         {
             throw new NotImplementedException();
         }

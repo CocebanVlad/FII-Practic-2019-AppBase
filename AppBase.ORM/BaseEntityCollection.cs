@@ -48,5 +48,20 @@ namespace AppBase.ORM
 
             return clone;
         }
+
+        /// <summary>
+        /// Convert entities to a concrete type
+        /// </summary>
+        /// <typeparam name="C">Concrete type</typeparam>
+        /// <returns></returns>
+        public virtual BaseEntityCollection<C> To<C>() where C : BaseEntity
+        {
+            var coll = new BaseEntityCollection<C>();
+
+            foreach (var entity in this)
+                coll.Add(entity as C);
+
+            return coll;
+        }
     }
 }

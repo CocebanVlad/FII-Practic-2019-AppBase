@@ -28,6 +28,7 @@ var model = Model.Load(modelPath);
 
 namespace AppBase.ORM.Entities
 {
+    using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
     using System.Collections.Specialized;
@@ -71,7 +72,8 @@ foreach (var entity in model.Entities)
 <#
     foreach (var field in entity.Fields.OrderBy(x => !string.IsNullOrEmpty(x.Relation)))
     {
-        var privateFieldName = "_" + Char.ToLowerInvariant(field.FieldName[0]) + field.FieldName.Substring(1);
+        var fieldName = Char.ToLowerInvariant(field.FieldName[0]) + field.FieldName.Substring(1);
+        var privateFieldName = "_" + fieldName;
         var getFn = "get { return " + privateFieldName + "; }";
         var setFn = "set { " + privateFieldName + " = value; }";
         var type = string.IsNullOrEmpty(field.Relation)
@@ -93,6 +95,7 @@ foreach (var entity in model.Entities)
         /// <summary>
         /// Get or set <#= field.FieldName #>
         /// </summary>
+        [JsonProperty("<#= fieldName #>")]
         [EntityProperty]
         public <#= type #> <#= field.FieldName #>
         {
@@ -780,6 +783,14 @@ foreach (var entity in model.Entities)
         /// <summary>
         /// Select one entity by key
         /// </summary>
+<#
+    foreach (var field in keyFields)
+    {
+#>
+        /// <param name="<#= field.Value.Item1 #>"><#= field.Key.FieldName #></param>
+<#
+    }
+#>
         /// <returns>An entity</returns>
         public <#= entity.Name #> SelectOne(<#= string.Join(", ", keyFields.Select(x => x.Value.Item2 + " " + x.Value.Item1)) #>)
         {
@@ -793,6 +804,53 @@ foreach (var entity in model.Entities)
     }
 #>
             return (<#= entity.Name #>)SelectOne(key);
+        }
+
+        /// <summary>
+        /// Select all entities
+        /// </summary>
+        /// <param name="skip">Skip</param>
+        /// <param name="take">Take</param>
+        /// <returns>A collection of entities</returns>
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT <#= string.Join(", ", entityFields.Select(x => "[" + x.ColumnName + "] AS [" + x.ColumnName + "]")) #>
+                    FROM [dbo].[<#= entity.TableName #>]
+                    ORDER BY <#= string.Join(", ", keyFields.Select(x => "[" + x.Key.ColumnName + "]")) #>
+                    OFFSET " + skip + @" ROWS FETCH NEXT " + take + @" ROWS ONLY;
+                    ";
+
+                var coll = new BaseEntityCollection<BaseEntity>();
+                var tbl = new DataTable();
+                using (var reader = cmd.ExecuteReader())
+                    tbl.Load(reader);
+
+                if (tbl.Rows.Count > 0)
+                    foreach (DataRow row in tbl.Rows)
+                    {
+                        var entity = new <#= entity.Name #>();
+                        entity.FromDataRow(row);
+                        coll.Add(entity);
+                    }
+
+                return coll;
+            }
+        }
+
+        /// <summary>
+        /// Count entities
+        /// </summary>
+        /// <returns>Num. of entities</returns>
+        public override int Count()
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[<#= entity.TableName #>];";
+                return (int)cmd.ExecuteScalar();
+            }
         }
     }
     #endregion
