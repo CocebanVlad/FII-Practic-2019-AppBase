@@ -73,5 +73,6 @@
     <Build Include="dbo\Tables\Tabs.sql" />
     <Build Include="dbo\Tables\UserInRoles.sql" />
     <Build Include="dbo\Tables\Users.sql" />
+    <Build Include="dbo\Tables\TabRowDetails.sql" />
   </ItemGroup>
 </Project>
