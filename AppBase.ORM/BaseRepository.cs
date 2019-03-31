@@ -118,7 +118,7 @@ namespace AppBase.ORM
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public virtual BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public virtual BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             throw new NotImplementedException();
         }
@@ -135,11 +135,11 @@ namespace AppBase.ORM
         /// <summary>
         /// Select all filtered entities
         /// </summary>
+        /// <param name="filter">Filter (a dictionary containing key column name and its value)</param>
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
-        /// <param name="filter">Filter (a dictionary containing key column name and its value)</param>
         /// <returns>A collection of entities</returns>
-        public virtual BaseEntityCollection<BaseEntity> SelectAll(int skip, int take, Dictionary<string, string> filter)
+        public virtual BaseEntityCollection<BaseEntity> SelectAll(Dictionary<string, object> filter, int skip = 0, int take = 100)
         {
             throw new NotImplementedException();
         }

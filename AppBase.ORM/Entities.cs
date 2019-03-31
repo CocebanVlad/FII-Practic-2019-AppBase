@@ -435,7 +435,7 @@ namespace AppBase.ORM.Entities
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             using (var cmd = Connection.CreateCommand())
             {
@@ -836,7 +836,7 @@ namespace AppBase.ORM.Entities
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             using (var cmd = Connection.CreateCommand())
             {
@@ -1272,7 +1272,7 @@ namespace AppBase.ORM.Entities
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             using (var cmd = Connection.CreateCommand())
             {
@@ -1697,7 +1697,7 @@ namespace AppBase.ORM.Entities
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             using (var cmd = Connection.CreateCommand())
             {
@@ -2076,7 +2076,7 @@ namespace AppBase.ORM.Entities
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             using (var cmd = Connection.CreateCommand())
             {
@@ -2504,7 +2504,7 @@ namespace AppBase.ORM.Entities
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             using (var cmd = Connection.CreateCommand())
             {
@@ -2901,7 +2901,7 @@ namespace AppBase.ORM.Entities
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             using (var cmd = Connection.CreateCommand())
             {
@@ -3196,7 +3196,7 @@ namespace AppBase.ORM.Entities
         /// <param name="skip">Skip</param>
         /// <param name="take">Take</param>
         /// <returns>A collection of entities</returns>
-        public override BaseEntityCollection<BaseEntity> SelectAll(int skip, int take = 100)
+        public override BaseEntityCollection<BaseEntity> SelectAll(int skip = 0, int take = 100)
         {
             using (var cmd = Connection.CreateCommand())
             {
