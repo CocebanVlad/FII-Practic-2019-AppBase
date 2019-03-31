@@ -15,6 +15,8 @@ Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "AppBase.Database", "AppBase
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppBase.WebAPI", "AppBase.WebAPI\AppBase.WebAPI.csproj", "{021D8076-5228-4B10-8AF8-A2334E3B9A05}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppBase.WebApp", "AppBase.WebApp\AppBase.WebApp.csproj", "{75199F75-CA33-4D4D-9A88-40BC6FF0E76D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -47,6 +49,10 @@ Global
 		{021D8076-5228-4B10-8AF8-A2334E3B9A05}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{021D8076-5228-4B10-8AF8-A2334E3B9A05}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{021D8076-5228-4B10-8AF8-A2334E3B9A05}.Release|Any CPU.Build.0 = Release|Any CPU
+		{75199F75-CA33-4D4D-9A88-40BC6FF0E76D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75199F75-CA33-4D4D-9A88-40BC6FF0E76D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75199F75-CA33-4D4D-9A88-40BC6FF0E76D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75199F75-CA33-4D4D-9A88-40BC6FF0E76D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
